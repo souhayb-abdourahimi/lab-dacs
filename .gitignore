@@ -1,0 +1,17 @@
+# Secrets et variables d'environnement
+.env
+*.key
+*.pem
+id_ed25519
+id_rsa
+
+# Sauvegardes de configuration
+*.bak
+*.bak-*
+
+# Rapports generes
+rapport-*.txt
+*.log
+
+# Systeme
+.DS_Store

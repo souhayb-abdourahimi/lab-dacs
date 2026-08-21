@@ -1,0 +1,51 @@
+# Stack de demonstration : serveur web + base de donnees
+#
+# Usage :
+#   cp .env.example .env   puis renseigner les valeurs
+#   docker compose up -d
+#   docker compose ps
+#   docker compose logs -f
+#   docker compose down          (ajouter -v pour supprimer les volumes)
+
+services:
+
+  web:
+    image: nginx:alpine
+    container_name: lab-web
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./site:/usr/share/nginx/html:ro
+    networks:
+      - interne
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    container_name: lab-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB}
+      POSTGRES_USER:     ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - donnees-db:/var/lib/postgresql/data
+    networks:
+      - interne
+    # La base n'est PAS exposee sur l'hote : elle n'est joignable
+    # que depuis le reseau interne, par les autres conteneurs.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  interne:
+    driver: bridge
+
+volumes:
+  donnees-db:
