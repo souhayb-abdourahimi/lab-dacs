@@ -1,27 +1,25 @@
 #!/bin/bash
-# Interrupteur du mode vigilance (surveillance d'absence)
-DRAPEAU="$HOME/.local/state/mode-vigilance"
-mkdir -p "$(dirname "$DRAPEAU")"
+# Interrupteur du mode vigilance
+ATTENTE="$HOME/.local/state/vigilance-en-attente"
+ARME="$HOME/.local/state/mode-vigilance"
+mkdir -p "$(dirname "$ARME")"
 TOPIC=$(grep -oP '(?<=NTFY_TOPIC=).*' /etc/lab-alertes.conf 2>/dev/null)
 
 case "$1" in
   absent)
-    touch "$DRAPEAU"
-    notify-send "Mode vigilance ARMÉ" "La surveillance d'absence est active." 2>/dev/null
-    [ -n "$TOPIC" ] && curl -s -m 5 -H "Title: Vigilance armee" -H "Tags: shield" \
-      -d "Surveillance d'absence activee
-Quand : $(date '+%d/%m/%Y %H:%M:%S')" "https://ntfy.sh/$TOPIC" >/dev/null 2>&1
-    echo "Mode vigilance ARMÉ."
+    touch "$ATTENTE"
+    notify-send "Vigilance PRÊTE" "S'armera au verrouillage de l'écran (Super+L)." 2>/dev/null
+    echo "Vigilance en attente : verrouille l'écran pour l'armer."
     ;;
   present)
-    rm -f "$DRAPEAU"
-    notify-send "Mode vigilance désarmé" "Bon retour." 2>/dev/null
-    echo "Mode vigilance désarmé."
+    rm -f "$ATTENTE" "$ARME"
+    notify-send "Vigilance désarmée" "Bon retour." 2>/dev/null
+    echo "Vigilance désarmée."
     ;;
   statut)
-    [ -f "$DRAPEAU" ] && echo "ARMÉ" || echo "désarmé"
+    if [ -f "$ARME" ]; then echo "ARMÉE (surveillance active)"
+    elif [ -f "$ATTENTE" ]; then echo "EN ATTENTE (s'armera au verrouillage)"
+    else echo "désarmée"; fi
     ;;
-  *)
-    echo "Usage : mode-vigilance.sh {absent|present|statut}"
-    ;;
+  *) echo "Usage : mode-vigilance.sh {absent|present|statut}" ;;
 esac

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# Alerte + verrouille l'ecran si activite pendant le mode vigilance
+# Alerte + verrouille si activite pendant le mode vigilance
+# Delai de grace de 10 s apres l'armement (pour partir sans se faire detecter)
 import time, glob, subprocess, select
 from pathlib import Path
 import evdev
@@ -15,10 +16,10 @@ def topic():
         return None
 
 def reagir():
-    # 1) On verrouille l'ecran tout de suite
+    subprocess.run(["/home/souhayb/.local/bin/capture-intrus.sh"],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     subprocess.run(["loginctl", "lock-session"],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    # 2) On alerte
     t = topic()
     if not t:
         return
@@ -34,6 +35,8 @@ if not devices:
     exit(0)
 dev_map = {d.fd: d for d in devices}
 dernier = 0
+arme_depuis = 0
+etait_arme = False
 
 while True:
     r, _, _ = select.select(dev_map, [], [], 1)
@@ -43,7 +46,20 @@ while True:
                 pass
         except OSError:
             pass
-    if DRAPEAU.exists() and r:
+
+    arme = DRAPEAU.exists()
+    # On note l'instant ou la vigilance vient d'etre armee
+    if arme and not etait_arme:
+        arme_depuis = time.time()
+    etait_arme = arme
+
+    if not arme:
+        continue
+    # Delai de grace : on ignore l'activite pendant 10 s apres l'armement
+    if time.time() - arme_depuis < 10:
+        continue
+
+    if r:
         maintenant = time.time()
         if maintenant - dernier > 30:
             dernier = maintenant
