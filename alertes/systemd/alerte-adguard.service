@@ -1,0 +1,7 @@
+[Unit]
+Description=Notifications ntfy des blocages AdGuard
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/alerte-adguard.sh

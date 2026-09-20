@@ -1,0 +1,10 @@
+[Unit]
+Description=Verifie les blocages AdGuard toutes les 30 secondes
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=30s
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

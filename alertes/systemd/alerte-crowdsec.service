@@ -1,0 +1,7 @@
+[Unit]
+Description=Notifications ntfy des alertes CrowdSec
+After=crowdsec.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/alerte-crowdsec.sh
