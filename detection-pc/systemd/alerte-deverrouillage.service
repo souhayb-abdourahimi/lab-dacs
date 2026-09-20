@@ -1,0 +1,10 @@
+[Unit]
+Description=Alerte au deverrouillage de session
+After=graphical-session.target
+
+[Service]
+ExecStart=%h/.local/bin/alerte-deverrouillage.sh
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
