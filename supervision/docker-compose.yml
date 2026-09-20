@@ -1,0 +1,52 @@
+# Supervision du lab : Prometheus (collecte) + node-exporter (métriques du serveur) + Grafana (affichage)
+# Versions fixées pour un déploiement reproductible : vérifie les plus récentes sur Docker Hub.
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks: [supervision]
+    restart: unless-stopped
+    # Aucun port publié : Prometheus n'est joignable que depuis le réseau interne.
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: node-exporter
+    hostname: debian-dacs-lab
+    command:
+      - --path.rootfs=/host
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    networks: [supervision]
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: grafana
+    env_file: .env
+    environment:
+      - GF_USERS_ALLOW_SIGN_UP=false
+    ports:
+      # Lié à 127.0.0.1 : jamais exposé sur le réseau, accès par tunnel SSH uniquement.
+      # (Docker contourne ufw pour les ports publiés, d'où ce choix.)
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on: [prometheus]
+    networks: [supervision]
+    restart: unless-stopped
+
+networks:
+  supervision: {}
+
+volumes:
+  prometheus-data: {}
+  grafana-data: {}
