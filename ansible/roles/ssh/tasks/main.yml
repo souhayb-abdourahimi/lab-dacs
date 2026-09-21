@@ -1,0 +1,15 @@
+---
+# Durcissement SSH : clé uniquement, root interdit
+- name: Déployer la configuration SSH durcie
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/00-durcissement.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Géré par Ansible - durcissement SSH
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin no
+    validate: /usr/sbin/sshd -t -f %s
+  notify: Redémarrer SSH
