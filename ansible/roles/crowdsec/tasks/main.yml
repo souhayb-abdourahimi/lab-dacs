@@ -30,6 +30,28 @@
         type: syslog
   notify: Redémarrer CrowdSec
 
+# Correctif Debian 13 : le processus SSH est renomme "sshd-session",
+# ce que le parser CrowdSec ne reconnait pas. On retablit le nom "sshd"
+# tot dans l'etape s01 pour que la detection d'attaque SSH fonctionne.
+# Conditionnel : ne s'applique que sur Debian 13 et superieur.
+- name: "Debian 13 : corriger la reconnaissance du parser SSH (sshd-session)"
+  ansible.builtin.copy:
+    dest: /etc/crowdsec/parsers/s01-parse/aaa-sshd-session-fix.yaml
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      filter: "evt.Parsed.program == 'sshd-session'"
+      name: debian13/sshd-session-rename
+      description: "Debian 13 renomme sshd en sshd-session ; on retablit le nom pour le parser SSH"
+      statics:
+        - parsed: program
+          value: sshd
+  when:
+    - ansible_distribution == "Debian"
+    - ansible_distribution_major_version | int >= 13
+  notify: Redémarrer CrowdSec
+
 - name: Activer et démarrer CrowdSec
   ansible.builtin.systemd:
     name: crowdsec
