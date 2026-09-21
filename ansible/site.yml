@@ -1,0 +1,7 @@
+---
+- name: Déploiement du lab DACS
+  hosts: serveurs
+  become: true
+  roles:
+    - docker
+    - supervision

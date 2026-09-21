@@ -1,0 +1,3 @@
+# Ne jamais versionner un mot de passe de coffre en clair
+.vault_pass
+*.vault_pass

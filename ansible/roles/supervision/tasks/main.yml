@@ -1,0 +1,23 @@
+---
+# Déploie la stack de supervision (Prometheus + Grafana + node-exporter)
+- name: Copier les fichiers de la supervision
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../supervision/"
+    dest: /home/{{ ansible_user }}/lab-dacs/supervision/
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: preserve
+
+- name: Générer le fichier .env avec le mot de passe Grafana (depuis Vault)
+  ansible.builtin.template:
+    src: env.j2
+    dest: /home/{{ ansible_user }}/lab-dacs/supervision/.env
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0600"
+
+- name: Démarrer la stack avec Docker Compose
+  community.docker.docker_compose_v2:
+    project_src: /home/{{ ansible_user }}/lab-dacs/supervision
+    state: present
+  become: false

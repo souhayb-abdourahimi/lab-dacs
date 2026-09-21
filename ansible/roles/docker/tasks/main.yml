@@ -1,0 +1,21 @@
+---
+# Installe Docker (version Debian) sur la VM
+- name: Installer Docker et Compose
+  ansible.builtin.apt:
+    name:
+      - docker.io
+      - docker-compose
+    state: present
+    update_cache: true
+
+- name: Démarrer et activer Docker
+  ansible.builtin.systemd:
+    name: docker
+    state: started
+    enabled: true
+
+- name: Ajouter l'utilisateur au groupe docker
+  ansible.builtin.user:
+    name: "{{ ansible_user }}"
+    groups: docker
+    append: true
