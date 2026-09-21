@@ -3,6 +3,7 @@
   hosts: serveurs
   become: true
   roles:
+    - secrets
     - docker
     - supervision
     - adguard

@@ -1,0 +1,7 @@
+# MODÈLE de secrets — à copier en all.yml puis chiffrer avec :
+#   ansible-vault encrypt group_vars/all.yml
+# Ne JAMAIS versionner all.yml en clair : seul all.yml.example (ce fichier) va sur Git.
+
+grafana_admin_password: choisir_un_mot_de_passe_grafana
+ntfy_topic: choisir-un-sujet-secret-ex-monlab-ab12cd34
+adguard_auth: admin:choisir_un_mot_de_passe_adguard
