@@ -2,6 +2,8 @@
 
 Ce guide explique comment déployer le lab de A à Z, sans rien supposer connu. À la fin, vous aurez un serveur supervisé, durci et défendu, qui vous envoie des alertes sur votre téléphone.
 
+> Avant de commencer, lisez le [modèle de menaces](09-threat-model.md) : il précise ce que le lab protège, ce qu'il ne protège pas, et ses limites. C'est un laboratoire d'apprentissage, pas un produit de sécurité certifié.
+
 ## Ce que contient le projet
 
 Le dépôt réunit **deux choses distinctes** :
@@ -21,11 +23,13 @@ Le dépôt réunit **deux choses distinctes** :
 
 ## Étape 1 — Obtenir un serveur
 
-Il vous faut un serveur **Debian 12/13 ou Ubuntu**, accessible en SSH. Deux façons de l'obtenir :
+Il vous faut un serveur **Debian 12/13 ou Ubuntu LTS**, accessible en SSH. Deux façons de l'obtenir :
 
-**Option A — une machine virtuelle sur votre PC (gratuit).** Avec KVM/QEMU sous Linux, ou VirtualBox sous Windows/macOS. Installez Debian sans interface graphique, notez l'adresse IP de la VM et le nom d'utilisateur créé. C'est la solution du lab d'origine.
+**Option A — une machine virtuelle sur votre PC (gratuit).** Avec KVM/QEMU, VirtualBox ou GNOME Boxes. Installez Debian ou Ubuntu **sans interface graphique**, en cochant **serveur SSH** à l'installation. Notez l'adresse IP de la VM et le nom d'utilisateur créé.
 
-**Option B — un serveur chez un hébergeur (quelques euros/mois).** Un petit VPS arrive déjà installé et accessible en SSH, sans rien à configurer côté machine. Plus simple si vous débutez avec la virtualisation.
+> Sous VirtualBox, mettez la carte réseau en mode **Accès par pont** (Bridged), sinon la machine de contrôle ne pourra pas joindre la VM en SSH.
+
+**Option B — un serveur chez un hébergeur (quelques euros/mois).** Un petit VPS arrive déjà installé et accessible en SSH. Plus simple si vous débutez avec la virtualisation.
 
 Dans les deux cas, à la fin de cette étape vous devez connaître : **l'adresse IP du serveur** et **le nom d'utilisateur** pour vous y connecter.
 
@@ -102,6 +106,8 @@ Le script vous guide et vous pose quelques questions :
 
 Le script installe Ansible au besoin, teste la connexion, crée votre coffre chiffré, puis déploie tout. À la fin, un résumé `PLAY RECAP` avec `failed=0` signifie que tout s'est bien passé.
 
+> Les correctifs spécifiques à une distribution (par exemple le renommage `sshd-session` de Debian 13, qui empêche CrowdSec de détecter les attaques SSH) sont appliqués **automatiquement selon l'OS détecté**. Sur Debian 12 ou Ubuntu, où ils ne sont pas nécessaires, ils sont ignorés. Vous n'avez rien à faire.
+
 ---
 
 ## Étape 5 — Vérifier
@@ -141,24 +147,17 @@ Votre téléphone doit sonner.
 
 ## Dépannage
 
-Les problèmes ci-dessous sont ceux réellement rencontrés lors de la construction du lab.
+Une liste complète des problèmes réels rencontrés pendant la construction du lab, avec leur diagnostic et leur résolution, se trouve dans le [journal de dépannage](08-depannage.md). Les plus courants au déploiement :
 
-**« Failed to connect / Connection timed out » au test SSH.** Le serveur est éteint ou injoignable. S'il s'agit d'une VM KVM et que votre PC vient de redémarrer, le partage réseau peut être coupé. Sur le PC hôte :
+**« Failed to connect / Connection timed out » au test SSH.** Le serveur est éteint ou injoignable. S'il s'agit d'une VM KVM et que votre PC vient de redémarrer, le partage réseau peut être coupé. Sur le PC hôte, vérifiez que la VM a bien internet ; le journal de dépannage détaille le cas du conflit entre Docker et le forwarding réseau.
 
-```bash
-sudo iptables -I DOCKER-USER -i virbr0 -j ACCEPT
-sudo iptables -I DOCKER-USER -o virbr0 -j ACCEPT
-```
-
-**« Failed to update apt cache » à cause d'un dépôt tiers.** Un dépôt externe cassé (par exemple un ancien dépôt CrowdSec) bloque `apt`. Sur le serveur, désactivez le fichier fautif dans `/etc/apt/sources.list.d/` en le renommant avec l'extension `.desactive`, puis relancez.
-
-**« trying to overwrite … also in package … » pour Docker.** Deux versions de Docker se marchent dessus (celle de Debian et celle du dépôt officiel). Le playbook installe la version Debian (`docker.io`) ; n'ajoutez pas le dépôt Docker officiel en parallèle.
+**« Failed to update apt cache » à cause d'un dépôt tiers.** Un dépôt externe cassé bloque `apt`. Désactivez le fichier fautif dans `/etc/apt/sources.list.d/` en le renommant, puis relancez.
 
 **Un port déjà utilisé (ex. 8080).** Un service occupe déjà le port. Identifiez-le avec `sudo ss -tlpn | grep :PORT` et changez le port publié dans le `docker-compose.yml` concerné.
 
-**« grafana_admin_password is undefined » au déploiement.** Le fichier de secrets n'est pas chargé. Il doit s'appeler `group_vars/all.yml` (chargé automatiquement) et non `vault.yml`.
+**« grafana_admin_password is undefined » au déploiement.** Le fichier de secrets n'est pas chargé. Il doit s'appeler `group_vars/all.yml` (chargé automatiquement).
 
-**La VM résout mal les noms de domaine.** Vérifiez `/etc/resolv.conf` sur le serveur : il doit contenir une ligne `nameserver` valide (par exemple celle de la passerelle).
+**CrowdSec ne détecte pas les attaques SSH.** Sur Debian 13, le processus SSH est renommé `sshd-session` et le parser CrowdSec ne le reconnaît pas. Le playbook applique le correctif automatiquement ; le détail est dans le journal de dépannage.
 
 ---
 

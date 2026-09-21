@@ -4,6 +4,8 @@ Laboratoire personnel de sécurité et d'administration système, monté dans le
 
 L'objectif : partir d'une VM Debian nue et la transformer en un serveur **durci, supervisé et capable de se défendre seul**, avec des alertes en temps réel sur mon téléphone. En complément, un module protège le **poste de travail** lui-même contre un accès physique non autorisé. Tout le serveur se redéploie **en une commande** grâce à Ansible.
 
+> Ce projet est un **laboratoire d'apprentissage**, pas un produit de sécurité certifié ni un EDR commercial. Il démontre des principes et des compétences dans un environnement maîtrisé. Voir le [modèle de menaces](docs/09-threat-model.md) pour ce qu'il protège et ce qu'il ne protège pas.
+
 ## Déploiement rapide
 
 ```bash
@@ -34,18 +36,20 @@ Le script installe Ansible au besoin, chiffre vos secrets (Ansible Vault) et dé
    └────────┘
 ```
 
-## Ce qui tourne aujourd'hui
+## Documentation
 
-| Brique | Rôle | Détail |
-|--------|------|--------|
-| **Architecture** | Choix techniques et schéma réseau | [docs/00-architecture.md](docs/00-architecture.md) |
-| **Supervision** | Voir l'état du serveur en continu | [docs/01-supervision.md](docs/01-supervision.md) |
-| **Durcissement SSH** | Connexion par clé uniquement, root interdit | [docs/02-ssh.md](docs/02-ssh.md) |
-| **CrowdSec** | Détecter et bloquer les attaques | [docs/03-crowdsec.md](docs/03-crowdsec.md) |
-| **Alertes ntfy** | Être prévenu en temps réel sur mobile | [docs/04-alertes.md](docs/04-alertes.md) |
-| **Filtre DNS** | Bloquer les sites d'arnaque et le pistage | [docs/05-adguard.md](docs/05-adguard.md) |
-| **Détection d'accès au PC** | Protéger le poste contre un accès physique | [docs/06-detection-pc.md](docs/06-detection-pc.md) |
-| **Déploiement Ansible** | Tout redéployer en une commande | [docs/07-deploiement-ansible.md](docs/07-deploiement-ansible.md) |
+| Document | Contenu |
+|----------|---------|
+| [00 — Architecture](docs/00-architecture.md) | Choix techniques et schéma réseau |
+| [01 — Supervision](docs/01-supervision.md) | Prometheus, node-exporter, Grafana |
+| [02 — Durcissement SSH](docs/02-ssh.md) | Connexion par clé, root interdit |
+| [03 — CrowdSec](docs/03-crowdsec.md) | Détection et blocage des attaques |
+| [04 — Alertes ntfy](docs/04-alertes.md) | Notifications temps réel sur mobile |
+| [05 — Filtre DNS](docs/05-adguard.md) | Blocage arnaques et pistage (AdGuard) |
+| [06 — Détection d'accès au PC](docs/06-detection-pc.md) | Protection du poste de travail |
+| [07 — Déploiement Ansible](docs/07-deploiement-ansible.md) | Guide de A à Z, en une commande |
+| [08 — Journal de dépannage](docs/08-depannage.md) | Tous les problèmes rencontrés et résolus |
+| [09 — Modèle de menaces](docs/09-threat-model.md) | Ce que le lab protège et ne protège pas |
 
 ## Menaces couvertes
 
@@ -56,7 +60,9 @@ Ce lab répond aux modes d'attaque les plus courants contre les particuliers et 
 - **Élévation de privilèges** → root direct interdit, alerte à chaque `sudo`.
 - **Sites de phishing / malware** → filtre DNS avec listes mises à jour quotidiennement.
 - **Pistage publicitaire** → bloqué au niveau réseau, sans logiciel sur les appareils.
-- **Accès physique au poste** → détection d'intrusion, verrouillage automatique, photo de l'intrus.
+- **Accès physique au poste** → détection d'intrusion, verrouillage automatique, photo.
+
+Le [modèle de menaces](docs/09-threat-model.md) détaille précisément le périmètre et les limites.
 
 ## Stack technique
 
@@ -68,7 +74,7 @@ Debian 13 · Fedora · KVM/QEMU · Ansible (+ Vault) · Docker & Docker Compose 
 lab-dacs/
 ├── README.md                  ← ce fichier
 ├── install.sh                 ← déploiement guidé en une commande
-├── docs/                      ← documentation détaillée (une page par brique)
+├── docs/                      ← documentation détaillée (une page par sujet)
 ├── ansible/                   ← déploiement automatisé (rôles, playbook, secrets Vault)
 ├── supervision/               ← Prometheus + Grafana + node-exporter
 ├── adguard/                   ← filtre DNS AdGuard Home
@@ -86,16 +92,20 @@ lab-dacs/
 
 Aucun secret n'est versionné. Les mots de passe et le sujet de notification sont chiffrés avec **Ansible Vault** (`group_vars/all.yml`, illisible sans la clé de coffre). Le dépôt ne contient que des modèles à valeurs fictives (`all.yml.example`, `lab-alertes.conf.example`). Le mot de passe du coffre (`ansible/.vault_pass`) et les fichiers de secrets générés sur le serveur restent hors de Git.
 
+## Compatibilité
+
+Testé sur **Debian 13**. Le déploiement Ansible est prévu pour fonctionner sur **Debian 12** et **Ubuntu LTS** ; certains correctifs spécifiques (comme le renommage `sshd-session` de Debian 13) sont appliqués conditionnellement selon la distribution détectée.
+
 ## Suite du projet
 
-Les pistes d'évolution sont détaillées à la fin de chaque fichier de `docs/`. Les grandes lignes, par ordre de priorité :
+Les pistes d'évolution sont détaillées à la fin de chaque fichier de `docs/` et dans le [modèle de menaces](docs/09-threat-model.md). Par ordre de priorité :
 
-1. **Installateur du module détection PC** — un second script, à lancer sur le poste de travail.
-2. **Détection PAM des échecs de connexion** — capturer une tentative avant même l'ouverture de session.
-3. **Surveillance réseau en mode vigilance** — détecter une attaque ARP ou un scan de ports pendant l'absence (mode alerte).
-4. **Centralisation des journaux hors de la VM** — résister à l'effacement des traces par un attaquant root.
-5. **Réécriture du moteur de détection en Go** — binaire unique, concurrent, plus difficile à altérer.
-6. **Vitrine sur le portfolio** — compteur d'attaques bloquées, capture Grafana, lien vers ce dépôt.
+1. **Rôles Ansible adaptatifs** pour Ubuntu et Debian 12 (compatibilité élargie).
+2. **Centralisation des journaux hors de la VM** — résister à l'effacement des traces par un attaquant root.
+3. **Détection PAM des échecs de connexion** — capturer une tentative avant l'ouverture de session.
+4. **Tests automatisés (CI GitHub Actions)** — valider chaque brique après un changement.
+5. **Installateur du module détection PC** — un second script, à lancer sur le poste de travail.
+6. **Réécriture du moteur de détection en Go** — binaire unique, concurrent, plus difficile à altérer.
 
 ---
 
