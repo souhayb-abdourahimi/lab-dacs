@@ -1,0 +1,43 @@
+---
+# Installe CrowdSec (version Debian) et le bouncer pare-feu
+- name: Installer CrowdSec et le firewall-bouncer
+  ansible.builtin.apt:
+    name:
+      - crowdsec
+      - crowdsec-firewall-bouncer
+    state: present
+    update_cache: true
+
+- name: Créer le dossier d'acquisition
+  ansible.builtin.file:
+    path: /etc/crowdsec/acquis.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configurer l'acquisition des logs SSH (journald)
+  ansible.builtin.copy:
+    dest: /etc/crowdsec/acquis.d/ssh-journald.yaml
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      source: journalctl
+      journalctl_filter:
+        - "_SYSTEMD_UNIT=ssh.service"
+      labels:
+        type: syslog
+  notify: Redémarrer CrowdSec
+
+- name: Activer et démarrer CrowdSec
+  ansible.builtin.systemd:
+    name: crowdsec
+    enabled: true
+    state: started
+
+- name: Activer et démarrer le bouncer
+  ansible.builtin.systemd:
+    name: crowdsec-firewall-bouncer
+    enabled: true
+    state: started
