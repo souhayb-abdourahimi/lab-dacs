@@ -1,0 +1,40 @@
+---
+# Installe les scripts d'alerte et leurs timers systemd
+- name: Installer les scripts d'alerte
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../alertes/scripts/{{ item }}"
+    dest: /usr/local/bin/{{ item }}
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - alerte-connexion.sh
+    - alerte-sudo.sh
+    - alerte-crowdsec.sh
+    - alerte-adguard.sh
+
+- name: Installer les services et timers systemd
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../alertes/systemd/{{ item }}"
+    dest: /etc/systemd/system/{{ item }}
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - alerte-crowdsec.service
+    - alerte-crowdsec.timer
+    - alerte-adguard.service
+    - alerte-adguard.timer
+
+- name: Recharger systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Activer et démarrer les timers
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - alerte-crowdsec.timer
+    - alerte-adguard.timer

@@ -5,3 +5,5 @@
   roles:
     - docker
     - supervision
+    - adguard
+    - alertes
