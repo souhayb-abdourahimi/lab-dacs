@@ -1,5 +1,13 @@
 ---
 # Déploie le filtre DNS AdGuard Home
+- name: Créer le dossier AdGuard
+  ansible.builtin.file:
+    path: /home/{{ ansible_user }}/lab-dacs/adguard
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0755"
+
 - name: Copier les fichiers d'AdGuard
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/../adguard/docker-compose.yml"
