@@ -108,13 +108,13 @@ grafana_admin_password: ${GRAFANA_PASS}
 ntfy_topic: ${NTFY_TOPIC}
 adguard_auth: ${AG_USER}:${AG_PASS}
 YAML
-  ansible-vault encrypt group_vars/all.yml --vault-password-file .vault_pass >/dev/null
+  ansible-vault encrypt group_vars/all.yml >/dev/null
   ok "Coffre créé et chiffré."
 fi
 
 # --- 5. Test de connexion SSH ----------------------------------------------
 titre "5/6 — Test de connexion au serveur"
-if ansible serveurs -m ping --vault-password-file .vault_pass >/dev/null 2>&1; then
+if ansible serveurs -m ping >/dev/null 2>&1; then
   ok "Connexion au serveur réussie."
 else
   erreur "Impossible de joindre le serveur en SSH."
@@ -125,7 +125,7 @@ else
   echo "  - voir la section Dépannage de docs/07-deploiement-ansible.md."
   echo
   echo "Détail de l'erreur :"
-  ansible serveurs -m ping --vault-password-file .vault_pass || true
+  ansible serveurs -m ping || true
   exit 1
 fi
 
@@ -134,7 +134,7 @@ titre "6/6 — Déploiement du lab"
 echo "Ansible va maintenant configurer le serveur. Votre mot de passe SSH (sudo)"
 echo "sur le serveur va être demandé (BECOME password)."
 echo
-ansible-playbook site.yml --ask-become-pass --vault-password-file .vault_pass
+ansible-playbook site.yml --ask-become-pass
 
 echo
 ok "Déploiement terminé."
