@@ -1,5 +1,13 @@
 ---
 # Installe les scripts d'alerte et leurs timers systemd
+- name: Installer les outils utilises par les alertes (curl, jq)
+  ansible.builtin.apt:
+    name:
+      - curl
+      - jq
+    state: present
+    update_cache: true
+
 - name: Installer les scripts d'alerte
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/../alertes/scripts/{{ item }}"
