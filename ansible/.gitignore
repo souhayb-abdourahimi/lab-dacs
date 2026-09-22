@@ -1,5 +1,5 @@
 # Ne jamais versionner un mot de passe de coffre en clair
 .vault_pass
 *.vault_pass
-ansible/group_vars/all.yml
-ansible/inventory/hosts.yml
+group_vars/all.yml
+inventory/hosts.yml
