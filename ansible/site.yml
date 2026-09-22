@@ -14,5 +14,6 @@
     - supervision
     - adguard
     - alertes
+    - parefeu
     - crowdsec
     - ssh
