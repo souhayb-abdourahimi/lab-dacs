@@ -58,7 +58,9 @@ ok "Collection community.docker prête."
 
 # --- 3. Inventaire (adresse du serveur) ------------------------------------
 titre "3/6 — Adresse de votre serveur"
-read -r -p "Adresse IP du serveur à configurer : " SERVEUR_IP
+ANCIENNE_IP=$(grep -oP '(?<=ansible_host: ).*' inventory/hosts.yml 2>/dev/null || true)
+read -r -p "Adresse IP du serveur à configurer${ANCIENNE_IP:+ [$ANCIENNE_IP]} : " SERVEUR_IP
+SERVEUR_IP="${SERVEUR_IP:-$ANCIENNE_IP}"
 read -r -p "Nom d'utilisateur SSH sur le serveur [souhayb] : " SERVEUR_USER
 SERVEUR_USER="${SERVEUR_USER:-souhayb}"
 
