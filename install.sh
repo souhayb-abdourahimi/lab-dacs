@@ -53,7 +53,7 @@ fi
 
 # --- 2. Collection Docker --------------------------------------------------
 titre "2/6 — Collection Ansible pour Docker"
-ansible-galaxy collection install community.docker >/dev/null
+ansible-galaxy collection install community.docker community.general >/dev/null
 ok "Collection community.docker prête."
 
 # --- 3. Inventaire (adresse du serveur) ------------------------------------
