@@ -1,0 +1,8 @@
+# Modele d'inventaire. install.sh genere automatiquement le vrai hosts.yml.
+# Si vous le creez a la main, copiez ce fichier en hosts.yml et mettez votre IP.
+serveurs:
+  hosts:
+    lab-vm:
+      ansible_host: 192.168.X.X       # <-- l'IP de VOTRE serveur
+      ansible_user: souhayb           # <-- VOTRE utilisateur SSH
+      ansible_python_interpreter: /usr/bin/python3
