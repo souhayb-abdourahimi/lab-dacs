@@ -18,7 +18,7 @@ services:
   node-exporter:
     image: prom/node-exporter:v1.8.2
     container_name: node-exporter
-    hostname: debian-dacs-lab
+    hostname: ${NODE_HOSTNAME:-serveur}
     command:
       - --path.rootfs=/host
     pid: host
