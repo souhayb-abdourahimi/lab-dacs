@@ -1,23 +1,52 @@
 ---
-# Déploie le filtre DNS AdGuard Home
-- name: Créer le dossier AdGuard
+# Déploie le filtre DNS AdGuard Home, préconfiguré (mot de passe + listes)
+- name: Créer les dossiers AdGuard
   ansible.builtin.file:
-    path: /home/{{ ansible_user }}/lab-dacs/adguard
+    path: "/home/{{ ansible_user }}/lab-dacs/adguard/{{ item }}"
     state: directory
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     mode: "0755"
+  loop:
+    - ""
+    - conf
+    - work
 
-- name: Copier les fichiers d'AdGuard
+- name: Copier le docker-compose d'AdGuard
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/../adguard/docker-compose.yml"
-    dest: /home/{{ ansible_user }}/lab-dacs/adguard/docker-compose.yml
+    dest: "/home/{{ ansible_user }}/lab-dacs/adguard/docker-compose.yml"
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     mode: "0644"
 
+# Génère le hash bcrypt du mot de passe AdGuard (partie après ':' dans adguard_auth)
+- name: Installer python3-bcrypt (pour hacher le mot de passe AdGuard)
+  ansible.builtin.apt:
+    name: python3-bcrypt
+    state: present
+    update_cache: true
+
+- name: Générer le hash bcrypt du mot de passe AdGuard
+  ansible.builtin.command: >
+    python3 -c "import bcrypt; print(bcrypt.hashpw('{{ adguard_auth.split(':')[1] }}'.encode(), bcrypt.gensalt()).decode())"
+  register: adguard_hash
+  changed_when: false
+  no_log: true
+
+- name: Déployer la configuration AdGuard préremplie (depuis Vault)
+  ansible.builtin.template:
+    src: AdGuardHome.yaml.j2
+    dest: "/home/{{ ansible_user }}/lab-dacs/adguard/conf/AdGuardHome.yaml"
+    owner: root
+    group: root
+    mode: "0600"
+  vars:
+    adguard_password_hash: "{{ adguard_hash.stdout }}"
+  become: true
+
 - name: Démarrer AdGuard avec Docker Compose
   community.docker.docker_compose_v2:
-    project_src: /home/{{ ansible_user }}/lab-dacs/adguard
+    project_src: "/home/{{ ansible_user }}/lab-dacs/adguard"
     state: present
   become: true

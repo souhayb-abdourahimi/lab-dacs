@@ -6,7 +6,8 @@
     dest: /home/{{ ansible_user }}/lab-dacs/supervision/
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
-    mode: preserve
+    mode: "0644"
+    directory_mode: "0755"
 
 - name: Générer le fichier .env avec le mot de passe Grafana (depuis Vault)
   ansible.builtin.template:
