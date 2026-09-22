@@ -20,4 +20,4 @@
   community.docker.docker_compose_v2:
     project_src: /home/{{ ansible_user }}/lab-dacs/supervision
     state: present
-  become: false
+  become: true
