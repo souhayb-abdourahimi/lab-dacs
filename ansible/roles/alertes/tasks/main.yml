@@ -46,3 +46,13 @@
   loop:
     - alerte-crowdsec.timer
     - alerte-adguard.timer
+
+- name: Brancher l'alerte de connexion SSH sur PAM
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/sshd
+    line: "session optional pam_exec.so /usr/local/bin/alerte-connexion.sh"
+
+- name: Brancher l'alerte sudo sur PAM
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/sudo
+    line: "session optional pam_exec.so seteuid /usr/local/bin/alerte-sudo.sh"
