@@ -74,25 +74,16 @@ serveurs:
 YAML
 ok "Inventaire écrit (serveur ${SERVEUR_IP}, utilisateur ${SERVEUR_USER})."
 
-# --- 4. Test de connexion SSH ----------------------------------------------
-titre "4/6 — Test de connexion au serveur"
-if ansible serveurs -m ping >/dev/null 2>&1; then
-  ok "Connexion au serveur réussie."
-else
-  erreur "Impossible de joindre le serveur en SSH."
-  echo "Vérifiez que :"
-  echo "  - le serveur est allumé et joignable (ping ${SERVEUR_IP}) ;"
-  echo "  - votre clé SSH est installée dessus (ssh ${SERVEUR_USER}@${SERVEUR_IP}) ;"
-  echo "  - voir la section Dépannage de docs/07-deploiement-ansible.md."
-  exit 1
-fi
-
-# --- 5. Secrets (coffre Vault) ---------------------------------------------
-titre "5/6 — Vos secrets (chiffrés avec Ansible Vault)"
+# --- 4. Secrets (coffre Vault) ---------------------------------------------
+# IMPORTANT : les secrets sont créés AVANT le test de connexion, car le test
+# (comme tout appel Ansible) a besoin du .vault_pass pour déchiffrer le coffre.
+titre "4/6 — Vos secrets (chiffrés avec Ansible Vault)"
 mkdir -p group_vars
 if [[ -f group_vars/all.yml ]] && head -1 group_vars/all.yml | grep -q ANSIBLE_VAULT; then
   ok "Un coffre chiffré existe déjà, il sera réutilisé."
   read -r -s -p "Mot de passe de ce coffre : " VAULT_PASS; echo
+  printf '%s' "$VAULT_PASS" > .vault_pass
+  chmod 600 .vault_pass
 else
   echo "On va créer votre coffre de secrets. Choisissez vos propres valeurs."
   read -r -s -p "Mot de passe admin Grafana : "        GRAFANA_PASS; echo
@@ -107,7 +98,7 @@ else
   read -r -s -p "Confirmez le mot de passe du coffre : " VAULT_PASS2; echo
   [[ "$VAULT_PASS" == "$VAULT_PASS2" ]] || { erreur "Les mots de passe ne correspondent pas. Arrêt."; exit 1; }
 
-  # Fichier de mot de passe de coffre, temporaire puis conservé en .vault_pass
+  # Fichier de mot de passe de coffre, conservé en .vault_pass (jamais versionné)
   printf '%s' "$VAULT_PASS" > .vault_pass
   chmod 600 .vault_pass
 
@@ -121,10 +112,21 @@ YAML
   ok "Coffre créé et chiffré."
 fi
 
-# On s'assure que .vault_pass existe pour le déploiement
-if [[ ! -f .vault_pass ]]; then
-  printf '%s' "$VAULT_PASS" > .vault_pass
-  chmod 600 .vault_pass
+# --- 5. Test de connexion SSH ----------------------------------------------
+titre "5/6 — Test de connexion au serveur"
+if ansible serveurs -m ping --vault-password-file .vault_pass >/dev/null 2>&1; then
+  ok "Connexion au serveur réussie."
+else
+  erreur "Impossible de joindre le serveur en SSH."
+  echo "Vérifiez que :"
+  echo "  - le serveur est allumé et joignable (ping ${SERVEUR_IP}) ;"
+  echo "  - votre clé SSH est installée dessus (ssh ${SERVEUR_USER}@${SERVEUR_IP}) ;"
+  echo "  - Python 3 est installé sur le serveur (Ansible en a besoin) ;"
+  echo "  - voir la section Dépannage de docs/07-deploiement-ansible.md."
+  echo
+  echo "Détail de l'erreur :"
+  ansible serveurs -m ping --vault-password-file .vault_pass || true
+  exit 1
 fi
 
 # --- 6. Déploiement --------------------------------------------------------

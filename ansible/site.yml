@@ -2,6 +2,12 @@
 - name: Déploiement du lab DACS
   hosts: serveurs
   become: true
+  pre_tasks:
+    - name: S'assurer que Python 3 est installé (requis par Ansible)
+      ansible.builtin.raw: test -e /usr/bin/python3 || (apt-get update && apt-get install -y python3)
+      changed_when: false
+      # Le module 'raw' n'a pas besoin de Python sur la cible : c'est le seul
+      # moyen d'installer Python sur une Debian minimale qui n'en a pas encore.
   roles:
     - secrets
     - docker
