@@ -18,8 +18,9 @@ def topic():
         return None
 
 def reagir():
-    subprocess.run([str(CAPTURE)],
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if CAPTURE.exists():   # la capture webcam est optionnelle
+        subprocess.run([str(CAPTURE)],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     subprocess.run(["loginctl", "lock-session"],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     t = topic()

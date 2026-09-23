@@ -14,6 +14,8 @@ Le script réutilise le coffre du serveur s'il est présent sur la machine (mêm
 
 Prérequis : Fedora, Debian ou Ubuntu, avec le bureau GNOME. Les systèmes immuables (Fedora Silverblue) ne sont pas pris en charge.
 
+**L'option webcam est un bonus facultatif, refusé par défaut.** L'installateur la propose dans une étape à part, après avoir rappelé le cadre légal. Si elle est refusée, rien n'est installé pour la caméra (ni ffmpeg, ni les commandes `photo-on` et `photo-off`), et le script de capture refuse de s'exécuter même s'il est appelé. Pour changer d'avis, il suffit de relancer `./install-pc.sh`.
+
 Utilisation :
 
 | Commande | Effet |
@@ -21,7 +23,7 @@ Utilisation :
 | `absent` | met la vigilance en attente ; elle s'arme au verrouillage (Super+L) |
 | `present` | désarme la vigilance |
 | `vigilance` | affiche l'état de la vigilance |
-| `photo-on` / `photo-off` | autorise ou interdit la photo webcam (désactivée par défaut) |
+| `photo-on` / `photo-off` | autorise ou interdit la photo webcam (uniquement si l'option webcam a été choisie ; désactivée au départ) |
 
 Pour tout retirer : `./install-pc.sh --retirer`.
 
@@ -37,7 +39,7 @@ Détecter quand quelqu'un accède physiquement à mon PC en mon absence, et réa
 | Branchement USB | règle `udev` | oui |
 | Activité clavier/souris | lecture des périphériques (`evdev`) | seulement en vigilance |
 | Verrouillage automatique | `loginctl lock-session` sur intrusion | seulement en vigilance |
-| Photo de l'intrus | capture `ffmpeg` webcam | vigilance + `photo-on` |
+| Photo de l'intrus (option) | capture `ffmpeg` webcam | option webcam + vigilance + `photo-on` |
 
 ## Le mode vigilance
 
@@ -66,7 +68,9 @@ La copie sur le serveur applique le même principe que les alertes : les preuves
 
 ## Éthique et vie privée
 
-Une webcam qui se déclenche seule doit être maîtrisée. Trois garde-fous :
+Une webcam qui se déclenche seule doit être maîtrisée. Quatre garde-fous :
+
+- La webcam est une **option choisie à l'installation**, refusée par défaut, après un rappel du cadre légal.
 
 - La photo ne se prend que si la vigilance est armée **et** la capture explicitement autorisée (`photo-on`).
 - Une notification « Caméra activée » est envoyée à chaque capture : jamais de photo cachée.

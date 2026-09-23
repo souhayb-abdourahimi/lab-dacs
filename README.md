@@ -16,7 +16,9 @@ cd lab-dacs
 
 Le script installe Ansible au besoin, vous fait choisir vos propres identifiants, les chiffre (Ansible Vault) et déploie tout le serveur. À la fin, Grafana affiche déjà ses graphiques, AdGuard est déjà configuré avec ses listes de blocage, le pare-feu est actif et les alertes arrivent sur votre téléphone.
 
-Pour protéger aussi votre **poste de travail** (détection d'accès physique), lancez `./install-pc.sh` sur ce PC : voir [docs/06-detection-pc.md](docs/06-detection-pc.md).
+**En option**, vous pouvez aussi protéger votre **poste de travail** contre un accès physique en votre absence (alerte au déverrouillage, alerte USB, verrouillage automatique). Lancez `./install-pc.sh` sur ce PC : voir [docs/06-detection-pc.md](docs/06-detection-pc.md). Ce module est indépendant du serveur.
+
+> **Webcam : un bonus facultatif.** Le module peut aussi photographier la personne devant le PC lors d'une intrusion. Cette option est **refusée par défaut** : l'installateur la propose à part, avec ses avertissements. Même installée, la photo reste désactivée tant que vous ne l'autorisez pas avec `photo-on`. Filmer quelqu'un est encadré par la loi : à réserver à un ordinateur qui vous appartient.
 
 Guide pas-à-pas de A à Z (création de la VM, application ntfy, clé SSH, vérifications, dépannage) : **[docs/07-deploiement-ansible.md](docs/07-deploiement-ansible.md)**.
 
@@ -63,7 +65,7 @@ Guide pas-à-pas de A à Z (création de la VM, application ntfy, clé SSH, vér
 - **Élévation de privilèges** → root direct interdit, alerte à chaque `sudo`.
 - **Sites de phishing / malware** → filtre DNS avec listes mises à jour quotidiennement.
 - **Pistage publicitaire** → bloqué au niveau réseau, sans logiciel sur les appareils.
-- **Accès physique au poste** → détection d'intrusion, verrouillage automatique, photo.
+- **Accès physique au poste** (module optionnel) → détection d'intrusion, verrouillage automatique, et photo si l'option webcam est choisie.
 
 Le [modèle de menaces](docs/09-threat-model.md) détaille précisément le périmètre et les limites.
 

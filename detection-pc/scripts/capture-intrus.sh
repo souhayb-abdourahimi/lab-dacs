@@ -6,6 +6,7 @@ DRAPEAU_PHOTO="$HOME/.local/state/photo-autorisee"
 CONF="$HOME/.config/lab-dacs/detection.conf"
 [ -r "$CONF" ] && . "$CONF"
 [ -z "$NTFY_TOPIC" ] && exit 0
+[ "$WEBCAM_ACTIVE" = "oui" ] || exit 0   # webcam refusee a l'installation : jamais de photo
 WEBCAM="${WEBCAM:-/dev/video0}"
 
 HORODATAGE=$(date '+%Y%m%d-%H%M%S')

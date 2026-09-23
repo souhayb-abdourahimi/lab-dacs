@@ -9,7 +9,7 @@ Ce guide explique comment déployer le lab de A à Z, sans rien supposer connu. 
 Le dépôt réunit **deux choses distinctes** :
 
 1. **Le serveur** (supervision, pare-feu, CrowdSec, AdGuard, alertes, durcissement SSH). Il se déploie automatiquement avec Ansible, via le script `install.sh`. C'est l'objet de ce guide.
-2. **La détection d'accès au poste de travail** (dossier `detection-pc/`). Ces scripts tournent sur votre machine physique, pas sur le serveur, et s'installent séparément — voir [06-detection-pc.md](06-detection-pc.md).
+2. **La détection d'accès au poste de travail** (dossier `detection-pc/`), **facultative**. Elle tourne sur votre PC, pas sur le serveur, et s'installe séparément avec `install-pc.sh` : voir l'[étape 6](#étape-6-facultative--protéger-aussi-votre-poste-de-travail).
 
 ## Ce qui est testé
 
@@ -180,6 +180,32 @@ L'alerte CrowdSec peut mettre jusqu'à 30 secondes à arriver. Retirez ensuite l
 ```bash
 ssh -t utilisateur@ip_du_serveur "sudo cscli decisions delete --ip 203.0.113.10"
 ```
+
+---
+
+## Étape 6 (facultative) — Protéger aussi votre poste de travail
+
+Cette étape est un **bonus** : le serveur est complet sans elle. Elle installe, **sur le PC que vous utilisez tous les jours**, un module qui détecte un accès physique en votre absence :
+- une alerte à chaque déverrouillage de session ;
+- une alerte à chaque clé USB branchée, avec le nom de l'appareil ;
+- un **mode vigilance** : vous tapez `absent`, vous verrouillez l'écran, et la moindre activité sur le clavier ou la souris déclenche une alerte et reverrouille l'écran.
+
+Prérequis : Fedora, Debian ou Ubuntu, avec le bureau GNOME. Depuis le dossier du projet, **sur ce PC**, avec votre compte habituel :
+
+```bash
+./install-pc.sh
+```
+
+Si le serveur a été déployé depuis ce même PC, le script réutilise votre coffre (même sujet ntfy, et copie des preuves sur le serveur). Sinon, il vous demande simplement votre sujet ntfy. **Déconnectez-vous puis reconnectez-vous** à la fin.
+
+> **L'option webcam est facultative, et refusée par défaut.** Pendant l'installation, le script vous demande si vous voulez qu'une photo de l'intrus soit prise. Lisez ses avertissements avant de répondre :
+> - filmer une personne est encadré par la loi : c'est votre droit sur un ordinateur qui vous appartient, mais **interdit** sur un ordinateur de travail, d'école ou partagé sans information préalable des personnes (RGPD, CNIL) ;
+> - même installée, la photo reste **désactivée** tant que vous ne tapez pas `photo-on` (et `photo-off` pour la couper) ;
+> - une notification « Caméra activée » part à chaque photo : jamais de capture cachée.
+>
+> Si vous refusez, rien de lié à la caméra n'est installé. Vous pourrez changer d'avis en relançant `./install-pc.sh`.
+
+Pour retirer entièrement le module : `./install-pc.sh --retirer`. Détails et fonctionnement : [06-detection-pc.md](06-detection-pc.md).
 
 ---
 

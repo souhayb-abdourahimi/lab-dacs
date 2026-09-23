@@ -37,7 +37,8 @@
 # On teste la commande plutôt que le paquet : évite les conflits (ex. ffmpeg de RPM Fusion).
 - name: Repérer les commandes manquantes
   ansible.builtin.shell: "command -v {{ item }}"
-  loop: [curl, ffmpeg, notify-send, dbus-monitor, udevadm]
+  # ffmpeg seulement si la webcam a été choisie : rien de lié à la caméra sinon
+  loop: "{{ ['curl', 'notify-send', 'dbus-monitor', 'udevadm'] + (['ffmpeg'] if (webcam_active | bool) else []) }}"
   register: commandes
   changed_when: false
   failed_when: false
@@ -142,12 +143,31 @@
     - mode-vigilance.sh
     - photo-toggle.sh
 
-- name: Installer les commandes absent, present, vigilance, photo-on, photo-off
+- name: Installer les commandes absent, present, vigilance
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/../detection-pc/commandes/{{ item }}"
     dest: "{{ maison }}/.local/bin/{{ item }}"
     mode: "0755"
-  loop: [absent, present, vigilance, photo-on, photo-off]
+  loop: [absent, present, vigilance]
+
+- name: Installer les commandes photo-on, photo-off (option webcam)
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../detection-pc/commandes/{{ item }}"
+    dest: "{{ maison }}/.local/bin/{{ item }}"
+    mode: "0755"
+  loop: [photo-on, photo-off]
+  when: webcam_active | bool
+
+# Si la webcam est refusée (ou retirée lors d'une réinstallation) : aucune trace
+- name: Retirer tout ce qui concerne la webcam (option refusée)
+  ansible.builtin.file:
+    path: "{{ maison }}/{{ item }}"
+    state: absent
+  loop:
+    - .local/bin/photo-on
+    - .local/bin/photo-off
+    - .local/state/photo-autorisee
+  when: not (webcam_active | bool)
 
 - name: Installer le script d'alerte USB (exécuté par root)
   ansible.builtin.copy:
@@ -233,7 +253,7 @@
   ansible.builtin.debug:
     msg:
       - "Détection d'accès installée pour {{ utilisateur }}."
-      - "Commandes : absent (puis Super+L), present, vigilance, photo-on, photo-off."
-      - "La photo webcam est DÉSACTIVÉE par défaut : activez-la avec photo-on."
+      - "Commandes : absent (puis Super+L), present, vigilance."
+      - "{{ 'Webcam installée mais DÉSACTIVÉE : activez la photo avec photo-on, coupez-la avec photo-off.' if (webcam_active | bool) else 'Webcam non installée : aucune photo ne sera jamais prise.' }}"
       - "{{ ('Copie des preuves vers ' ~ serveur_preuves) if serveur_preuves | length > 0 else 'Aucun serveur configuré : les photos sont seulement envoyées sur le téléphone.' }}"
       - "{{ 'IMPORTANT : déconnectez-vous puis reconnectez-vous pour activer le groupe input et les commandes.' if groupe_input.changed else 'Groupe input déjà actif.' }}"

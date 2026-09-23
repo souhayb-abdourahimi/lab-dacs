@@ -11,5 +11,7 @@
     utilisateur: "{{ lookup('env', 'USER') }}"
     maison: "{{ lookup('env', 'HOME') }}"
     retirer: false
+    # Webcam : option choisie dans install-pc.sh, refusée par défaut
+    webcam_active: false
   roles:
     - detection_pc
