@@ -2,9 +2,9 @@
 
 Laboratoire personnel de sécurité et d'administration système, monté dans le cadre de ma préparation au BUT Informatique parcours DACS (Déploiement d'Applications Communicantes et Sécurisées).
 
-L'objectif : partir d'une VM Debian nue et la transformer en un serveur **durci, supervisé et capable de se défendre seul**, avec des alertes en temps réel sur mon téléphone. En complément, un module protège le **poste de travail** lui-même contre un accès physique non autorisé. Tout le serveur se redéploie **en une commande** grâce à Ansible.
+L'objectif : partir d'une VM Debian nue et la transformer en un serveur **durci, supervisé et capable de se défendre seul**, avec des alertes en temps réel sur mon téléphone. En complément, un module protège le **poste de travail** lui-même contre un accès physique non autorisé. Tout le serveur se redéploie **en une commande** grâce à Ansible, et il est **directement utilisable** à la fin du déploiement.
 
-> Ce projet est un **laboratoire d'apprentissage**, pas un produit de sécurité certifié ni un EDR commercial. Il démontre des principes et des compétences dans un environnement maîtrisé. Voir le [modèle de menaces](docs/09-threat-model.md) pour ce qu'il protège et ce qu'il ne protège pas.
+> Ce projet est un **laboratoire d'apprentissage**, pas un produit de sécurité certifié ni un EDR commercial. Voir le [modèle de menaces](docs/09-threat-model.md) pour ce qu'il protège et ce qu'il ne protège pas.
 
 ## Déploiement rapide
 
@@ -14,16 +14,18 @@ cd lab-dacs
 ./install.sh
 ```
 
-Le script installe Ansible au besoin, chiffre vos secrets (Ansible Vault) et déploie tout le serveur. Guide pas-à-pas de A à Z (serveur, application ntfy, clé SSH, dépannage) : **[docs/07-deploiement-ansible.md](docs/07-deploiement-ansible.md)**.
+Le script installe Ansible au besoin, vous fait choisir vos propres identifiants, les chiffre (Ansible Vault) et déploie tout le serveur. À la fin, Grafana affiche déjà ses graphiques, AdGuard est déjà configuré avec ses listes de blocage, le pare-feu est actif et les alertes arrivent sur votre téléphone.
+
+Guide pas-à-pas de A à Z (création de la VM, application ntfy, clé SSH, vérifications, dépannage) : **[docs/07-deploiement-ansible.md](docs/07-deploiement-ansible.md)**.
 
 ## Vue d'ensemble
 
 ```
 ┌─────────────┐        SSH (clé)        ┌──────────────────────────────┐
 │   PC hôte   │ ──────tunnel──────────▶ │      VM Debian 13 (KVM)       │
-│  (Fedora)   │                         │                              │
+│             │                         │  pare-feu ufw (22, 53)        │
 │             │ ──────DNS (53)────────▶ │  ┌────────────────────────┐  │
-│  Firefox    │ ◀─────filtrage─────────  │  │ AdGuard Home (Docker)  │  │
+│  navigateur │ ◀─────filtrage─────────  │  │ AdGuard Home (Docker)  │  │
 │             │                         │  ├────────────────────────┤  │
 │  détection  │ ──preuves (scp)───────▶ │  │ Prometheus + Grafana   │  │
 │  d'accès    │                         │  │ node-exporter (Docker) │  │
@@ -32,7 +34,7 @@ Le script installe Ansible au besoin, chiffre vos secrets (Ansible Vault) et dé
        │                                │  │ scripts d'alerte + PAM │  │
        │  notifications ntfy            │  └────────────────────────┘  │
    ┌───┴────┐                           └──────────────────────────────┘
-   │ iPhone │ ◀─── alertes du serveur ET du poste de travail
+   │ mobile │ ◀─── alertes du serveur ET du poste de travail
    └────────┘
 ```
 
@@ -53,10 +55,9 @@ Le script installe Ansible au besoin, chiffre vos secrets (Ansible Vault) et dé
 
 ## Menaces couvertes
 
-Ce lab répond aux modes d'attaque les plus courants contre les particuliers et les petites structures :
-
-- **Identifiants volés** → connexion SSH par clé, alerte à chaque connexion.
-- **Attaque par force brute** → CrowdSec détecte et bannit automatiquement.
+- **Identifiants volés** → connexion SSH par clé uniquement, alerte à chaque connexion.
+- **Attaque par force brute** → CrowdSec détecte et bannit automatiquement, avec alerte.
+- **Exposition de services** → pare-feu ufw : tout est refusé en entrée sauf SSH et DNS ; les interfaces d'administration ne sont joignables que par tunnel SSH.
 - **Élévation de privilèges** → root direct interdit, alerte à chaque `sudo`.
 - **Sites de phishing / malware** → filtre DNS avec listes mises à jour quotidiennement.
 - **Pistage publicitaire** → bloqué au niveau réseau, sans logiciel sur les appareils.
@@ -66,7 +67,7 @@ Le [modèle de menaces](docs/09-threat-model.md) détaille précisément le pér
 
 ## Stack technique
 
-Debian 13 · Fedora · KVM/QEMU · Ansible (+ Vault) · Docker & Docker Compose · Prometheus · Grafana · node-exporter · CrowdSec · nftables · AdGuard Home · systemd (services & timers) · PAM · udev · evdev · ffmpeg · ntfy · Bash · Python · Git
+Debian 13 · Fedora · Ubuntu · KVM/QEMU · libvirt · Ansible (+ Vault) · Docker & Docker Compose · Prometheus · Grafana · node-exporter · CrowdSec · ufw · nftables · AdGuard Home · systemd (services & timers) · PAM · udev · evdev · ffmpeg · ntfy · Bash · Python · Git
 
 ## Structure du dépôt
 
@@ -75,37 +76,40 @@ lab-dacs/
 ├── README.md                  ← ce fichier
 ├── install.sh                 ← déploiement guidé en une commande
 ├── docs/                      ← documentation détaillée (une page par sujet)
-├── ansible/                   ← déploiement automatisé (rôles, playbook, secrets Vault)
+├── ansible/                   ← déploiement automatisé
+│   ├── site.yml               ← playbook principal
+│   ├── roles/                 ← secrets, docker, supervision, adguard,
+│   │                             alertes, parefeu, crowdsec, ssh
+│   ├── group_vars/            ← all.yml.example (modèle de secrets)
+│   └── inventory/             ← hosts.yml.example (modèle d'inventaire)
 ├── supervision/               ← Prometheus + Grafana + node-exporter
 ├── adguard/                   ← filtre DNS AdGuard Home
 ├── alertes/                   ← alertes serveur (SSH, sudo, CrowdSec, AdGuard)
-│   ├── scripts/
-│   ├── systemd/
-│   └── lab-alertes.conf.example
 └── detection-pc/              ← détection d'accès au poste de travail
-    ├── scripts/
-    ├── systemd/
-    └── udev/
 ```
 
 ## Sécurité des secrets
 
-Aucun secret n'est versionné. Les mots de passe et le sujet de notification sont chiffrés avec **Ansible Vault** (`group_vars/all.yml`, illisible sans la clé de coffre). Le dépôt ne contient que des modèles à valeurs fictives (`all.yml.example`, `lab-alertes.conf.example`). Le mot de passe du coffre (`ansible/.vault_pass`) et les fichiers de secrets générés sur le serveur restent hors de Git.
+Aucun secret n'est versionné. Chaque utilisateur choisit ses propres identifiants pendant `install.sh` ; ils sont chiffrés avec **Ansible Vault** dans un coffre qui reste sur sa machine. Le dépôt ne contient que des modèles à valeurs fictives (`all.yml.example`, `hosts.yml.example`, `lab-alertes.conf.example`). Le mot de passe du coffre, le coffre lui-même et l'inventaire sont exclus de Git par `ansible/.gitignore`.
 
-## Compatibilité
+## Compatibilité et tests
 
-Testé sur **Debian 13**. Le déploiement Ansible est prévu pour fonctionner sur **Debian 12** et **Ubuntu LTS** ; certains correctifs spécifiques (comme le renommage `sshd-session` de Debian 13) sont appliqués conditionnellement selon la distribution détectée.
+Le déploiement a été validé **de zéro sur une VM Debian 13 vierge**, depuis deux machines de contrôle : **Fedora** et **Ubuntu**. Le test couvre l'installation complète, le filtrage DNS, la supervision, le pare-feu et les trois types d'alertes. Il est prévu pour fonctionner aussi sur Debian 12 et Ubuntu LTS ; les correctifs propres à une distribution (comme le renommage `sshd-session` de Debian 13) sont appliqués automatiquement selon le système détecté.
 
-## Suite du projet
+Ce test sur machine vierge a révélé une dizaine de défauts invisibles sur la machine de développement ; ils sont décrits dans la [partie 2 du journal de dépannage](docs/08-depannage.md).
 
-Les pistes d'évolution sont détaillées à la fin de chaque fichier de `docs/` et dans le [modèle de menaces](docs/09-threat-model.md). Par ordre de priorité :
+## Limites connues et suite du projet
 
-1. **Rôles Ansible adaptatifs** pour Ubuntu et Debian 12 (compatibilité élargie).
-2. **Centralisation des journaux hors de la VM** — résister à l'effacement des traces par un attaquant root.
-3. **Détection PAM des échecs de connexion** — capturer une tentative avant l'ouverture de session.
-4. **Tests automatisés (CI GitHub Actions)** — valider chaque brique après un changement.
-5. **Installateur du module détection PC** — un second script, à lancer sur le poste de travail.
-6. **Réécriture du moteur de détection en Go** — binaire unique, concurrent, plus difficile à altérer.
+- Le reverse proxy **Nginx** et la stack **PostgreSQL** de la VM de développement ont été installés à la main et ne sont pas encore inclus dans le déploiement automatique.
+- Le module **détection d'accès au PC** s'installe encore à la main (pas d'installateur).
+
+Pistes d'évolution, par ordre de priorité :
+
+1. **Rôle `web`** : automatiser Nginx et PostgreSQL.
+2. **Installateur du module détection PC**.
+3. **Centralisation des journaux hors de la VM** — résister à l'effacement des traces par un attaquant root.
+4. **Tests automatisés (CI GitHub Actions)** — valider le déploiement à chaque modification.
+5. **Honeypot SSH** et **fichiers leurres** (honeytokens) branchés sur les alertes.
 
 ---
 

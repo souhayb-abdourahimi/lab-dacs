@@ -159,6 +159,100 @@ Traitée en détail dans [06-detection-pc.md](06-detection-pc.md) : au déverrou
 
 ---
 
+## Partie 2 — Le test sur une machine vierge
+
+Tous les problèmes ci-dessus ont été résolus sur la VM de développement. Pour vérifier que le projet est réellement déployable par quelqu'un d'autre, il a ensuite été déployé **de zéro** sur une VM Debian 13 neuve, depuis un PC Ubuntu, en suivant uniquement le guide. Ce test a révélé une série de défauts invisibles sur la machine de développement, parce qu'ils y avaient été corrigés **à la main** sans être reportés dans Ansible.
+
+### 14. Le coffre de secrets personnel était publié sur GitHub
+
+**Le symptôme.** Sur la machine de test, toute commande Ansible échouait : d'abord « vault password file not found », puis « Decryption failed ».
+
+**La cause.** Le fichier `group_vars/all.yml` (le coffre chiffré avec le mot de passe personnel du développeur) était versionné. Tout nouvel utilisateur récupérait un coffre qu'il ne pouvait pas déchiffrer. Même chose pour `inventory/hosts.yml`, qui contenait l'IP du développeur.
+
+**Un piège dans la correction.** Une première tentative a échoué pour deux raisons : le chemin ajouté dans `ansible/.gitignore` était `ansible/group_vars/all.yml`, alors que les chemins d'un `.gitignore` sont **relatifs à son propre dossier** (il fallait `group_vars/all.yml`) ; et un `git add` sur le fichier juste après le `git rm --cached` l'avait réintégré au commit.
+
+**La résolution.** `git rm --cached` des deux fichiers, chemins corrigés dans le `.gitignore`, vérification avec `git check-ignore -v`. Seuls des modèles `.example` restent versionnés, et chaque utilisateur crée ses propres secrets via `install.sh`.
+
+**La leçon.** Vérifier ce qu'un **clone neuf** contient réellement, et non ce que l'on croit avoir retiré. Le coffre reste dans l'historique Git : il est chiffré, mais les mots de passe qu'il contenait doivent être considérés comme exposés et changés.
+
+### 15. `install.sh` testait la connexion avant de créer le coffre
+
+**Le symptôme.** Sur une machine sans coffre, le script s'arrêtait à « Impossible de joindre le serveur », alors que SSH fonctionnait.
+
+**La cause.** Le test de connexion (étape 4) appelait Ansible, qui a besoin du coffre, créé seulement à l'étape 5. Le message d'erreur masquait en plus la vraie cause.
+
+**La résolution.** Inversion des étapes (secrets, puis test de connexion) et affichage du détail de l'erreur en cas d'échec.
+
+### 16. Le mot de passe du coffre fourni deux fois
+
+**Le symptôme.** À la création d'un coffre neuf : « The vault-ids default,default are available to encrypt ».
+
+**La cause.** Le fichier de mot de passe était déclaré à la fois dans `ansible.cfg` et par l'option `--vault-password-file` du script. Ansible accepte ce doublon pour déchiffrer, mais refuse de choisir pour chiffrer. Le bug n'était jamais apparu, car cette branche du script (création d'un coffre) ne s'exécutait pas sur la machine de développement, où le coffre existait déjà.
+
+**La résolution.** Suppression de l'option en double dans le script.
+
+### 17. Python absent d'une Debian minimale
+
+**La cause.** Presque tous les modules Ansible exigent Python sur la cible.
+
+**La résolution.** Une tâche `pre_tasks` utilisant le module `raw`, le seul qui fonctionne sans Python, installe Python s'il manque.
+
+### 18. Docker Compose : « permission denied » sur le socket Docker
+
+**La cause.** Le rôle `docker` ajoute l'utilisateur au groupe `docker`, mais un changement de groupe ne prend effet qu'à la **connexion suivante**. Les tâches Docker Compose, forcées à s'exécuter avec l'utilisateur (`become: false`), n'avaient donc pas encore les droits.
+
+**La résolution.** Exécution des tâches Docker Compose en root (`become: true`).
+
+### 19. Dossier de destination absent
+
+**Le symptôme.** « Destination directory .../adguard does not exist ».
+
+**La cause.** Ansible crée automatiquement la destination quand il copie un dossier entier, mais pas quand il copie un fichier seul. Sur la machine de développement, le dossier existait déjà.
+
+**La résolution.** Une tâche crée les dossiers AdGuard avant la copie.
+
+### 20. Grafana redémarrait en boucle : permission refusée sur sa configuration
+
+**Le symptôme.** Grafana en état `Restarting`, avec « Datasource provisioning error: permission denied ».
+
+**La cause.** La copie utilisait `mode: preserve`, qui reprend les permissions d'origine des fichiers. Le conteneur Grafana, qui tourne avec un utilisateur non-root, ne pouvait plus lire ses fichiers de provisioning. C'est le même problème que le n°5, qui avait été corrigé à la main au début du projet.
+
+**La résolution.** Permissions explicites dans le rôle : `0644` pour les fichiers, `0755` pour les dossiers (ces fichiers ne contiennent aucun secret ; le `.env` reste en `0600`).
+
+### 21. AdGuard et Grafana démarraient vides
+
+**Le constat.** Le déploiement installait AdGuard sans configuration (assistant d'installation au premier accès) et Grafana sans tableau de bord.
+
+**La résolution.**
+- **AdGuard** : un modèle `AdGuardHome.yaml.j2` est rempli par Ansible. Le mot de passe choisi par l'utilisateur est **haché en bcrypt** sur le serveur, et les quatre listes de blocage sont préconfigurées.
+- **Grafana** : le tableau de bord Node Exporter est chargé automatiquement par le mécanisme de *provisioning* de Grafana.
+- Le **nom du serveur** affiché dans Grafana était écrit en dur dans le `docker-compose.yml`. Il est désormais transmis par une variable remplie par Ansible avec le vrai nom de chaque machine.
+
+### 22. Les alertes ne partaient pas du tout
+
+Deux causes successives, toutes deux liées à des réglages faits à la main sur la machine de développement :
+
+- **`curl` et `jq` absents.** Les scripts d'alerte en ont besoin, et une Debian minimale ne les installe pas. Aucun message d'erreur : les alertes échouaient silencieusement. Ils sont maintenant installés par le rôle `alertes`.
+- **Les alertes SSH et sudo n'étaient branchées nulle part.** Elles sont déclenchées par PAM, grâce à deux lignes ajoutées à la main dans `/etc/pam.d/sshd` et `/etc/pam.d/sudo`. Le rôle copiait les scripts sans ajouter ces lignes. Elles sont maintenant ajoutées par `lineinfile`, qui ne les duplique pas si elles existent déjà. L'option `optional` garantit qu'un échec d'alerte ne bloque jamais une connexion.
+
+### 23. Aucun pare-feu sur la machine neuve
+
+**La cause.** ufw avait été configuré à la main au début du projet et n'avait jamais été automatisé.
+
+**La résolution.** Un rôle `parefeu` : tout est refusé en entrée sauf SSH (22) et DNS (53). La règle SSH est ajoutée **avant** l'activation, pour qu'Ansible ne se coupe pas lui-même l'accès. Vérification que la politique `deny (routed)` ne gêne pas les conteneurs Docker, qui gèrent eux-mêmes les règles de leurs réseaux (AdGuard résout toujours les domaines extérieurs).
+
+### 24. L'IP de la VM changeait après un redémarrage
+
+**La cause.** Attribution automatique par DHCP.
+
+**La résolution.** Réservation d'une IP fixe pour l'adresse MAC de chaque VM dans le réseau libvirt (`virsh net-update ... ip-dhcp-host`). Le script propose en plus la dernière IP utilisée lors des lancements suivants.
+
+---
+
 ## Ce que ces problèmes ont en commun
 
-La plupart ne venaient pas d'une erreur de configuration simple, mais de **conflits entre couches** (Docker vs firewalld vs libvirt vs ufw) ou de **décalages avec une distribution très récente** (Debian 13 : dépôt CrowdSec, renommage sshd-session). Les résoudre a demandé de diagnostiquer méthodiquement, du plus bas niveau au plus haut, avec les bons outils : `ping`, `traceroute`, `tcpdump`, `ss`, `nft list`, `cscli explain`, et la lecture des logs. C'est cette démarche, plus que chaque correctif individuel, qui constitue la vraie compétence.
+La première série venait surtout de **conflits entre couches** (Docker, firewalld, libvirt, ufw) et de **décalages avec une distribution très récente** (Debian 13). Les résoudre a demandé un diagnostic méthodique, du plus bas niveau au plus haut, avec les bons outils : `ping`, `traceroute`, `tcpdump`, `ss`, `nft list`, `cscli explain`, et la lecture des logs.
+
+La seconde série révèle une leçon différente, et sans doute plus importante : **tout ce qui a été corrigé à la main finit par manquer ailleurs**. Python, `curl`, les lignes PAM, les permissions, le pare-feu : sur la machine de développement, tout fonctionnait, parce que ces réglages y avaient été faits au fil de l'eau. Seul un déploiement sur une **machine vierge** les a fait apparaître. Un projet d'infrastructure n'est reproductible que s'il a été testé dans les conditions exactes d'un nouvel utilisateur.
+
+Il reste un écart connu : le reverse proxy **Nginx** et la stack **PostgreSQL** de la VM de développement ont été installés à la main au début du projet et ne sont pas encore automatisés. Ils feront l'objet d'un futur rôle.
