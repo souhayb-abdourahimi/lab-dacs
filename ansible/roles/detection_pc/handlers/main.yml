@@ -1,0 +1,15 @@
+---
+# udev surveille déjà son dossier de règles : ce rechargement accélère la prise
+# en compte mais n'est pas indispensable. Il échoue sans démon udev (WSL, conteneur) :
+# on ne bloque pas le déploiement pour autant.
+- name: Recharger udev
+  ansible.builtin.command: udevadm control --reload-rules
+  become: true
+  changed_when: true
+  failed_when: false
+
+- name: Recharger systemd (système)
+  ansible.builtin.systemd:
+    daemon_reload: true
+  become: true
+  when: ansible_facts['service_mgr'] == 'systemd'

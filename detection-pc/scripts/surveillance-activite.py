@@ -6,17 +6,19 @@ from pathlib import Path
 import evdev
 
 DRAPEAU = Path.home() / ".local/state/mode-vigilance"
+CONF = Path.home() / ".config/lab-dacs/detection.conf"
+CAPTURE = Path.home() / ".local/bin/capture-intrus.sh"
 
 def topic():
     try:
-        for l in open("/etc/lab-alertes.conf"):
+        for l in open(CONF):
             if l.startswith("NTFY_TOPIC="):
-                return l.strip().split("=", 1)[1]
+                return l.strip().split("=", 1)[1].strip('"')
     except Exception:
         return None
 
 def reagir():
-    subprocess.run(["/home/souhayb/.local/bin/capture-intrus.sh"],
+    subprocess.run([str(CAPTURE)],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     subprocess.run(["loginctl", "lock-session"],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -30,8 +32,16 @@ def reagir():
         "-d", f"Activite detectee en mode absent. Ecran verrouille automatiquement.\nQuand : {quand}",
         f"https://ntfy.sh/{t}"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-devices = [evdev.InputDevice(p) for p in glob.glob("/dev/input/event*")]
+# Les peripheriques ne sont lisibles qu'avec le groupe "input", actif apres
+# reconnexion : on ignore ceux qu'on ne peut pas ouvrir au lieu de planter.
+devices = []
+for p in glob.glob("/dev/input/event*"):
+    try:
+        devices.append(evdev.InputDevice(p))
+    except (PermissionError, OSError):
+        pass
 if not devices:
+    print("Aucun peripherique d'entree lisible : reconnectez-vous (groupe input).")
     exit(0)
 dev_map = {d.fd: d for d in devices}
 dernier = 0

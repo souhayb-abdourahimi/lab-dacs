@@ -1,0 +1,15 @@
+---
+# Déploie la détection d'accès physique sur CE poste de travail (pas sur le serveur).
+# Lancé par install-pc.sh. localhost utilise automatiquement une connexion locale
+# (pas de "connection: local" au niveau du play : elle serait aussi imposée à la
+# tâche déléguée au serveur). Pour tout retirer : ./install-pc.sh --retirer
+- name: Détection d'accès au poste de travail
+  hosts: localhost
+  gather_facts: true
+  vars:
+    # Le playbook tourne avec l'utilisateur de la session : c'est lui qu'on protège.
+    utilisateur: "{{ lookup('env', 'USER') }}"
+    maison: "{{ lookup('env', 'HOME') }}"
+    retirer: false
+  roles:
+    - detection_pc

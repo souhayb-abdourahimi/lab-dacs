@@ -1,0 +1,55 @@
+---
+- name: Arrêter et désactiver les services utilisateur
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    scope: user
+    state: stopped
+    enabled: false
+  loop:
+    - alerte-deverrouillage.service
+    - surveillance-activite.service
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ansible_facts['user_uid'] }}"
+  failed_when: false
+
+- name: Supprimer les fichiers utilisateur
+  ansible.builtin.file:
+    path: "{{ maison }}/{{ item }}"
+    state: absent
+  loop:
+    - .config/systemd/user/default.target.wants/alerte-deverrouillage.service
+    - .config/systemd/user/default.target.wants/surveillance-activite.service
+    - .config/systemd/user/alerte-deverrouillage.service
+    - .config/systemd/user/surveillance-activite.service
+    - .local/bin/alerte-deverrouillage.sh
+    - .local/bin/surveillance-activite.py
+    - .local/bin/capture-intrus.sh
+    - .local/bin/mode-vigilance.sh
+    - .local/bin/photo-toggle.sh
+    - .local/bin/absent
+    - .local/bin/present
+    - .local/bin/vigilance
+    - .local/bin/photo-on
+    - .local/bin/photo-off
+    - .local/state/mode-vigilance
+    - .local/state/vigilance-en-attente
+    - .local/state/photo-autorisee
+    - .config/lab-dacs
+
+- name: Supprimer les fichiers système
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/udev/rules.d/99-alerte-usb.rules
+    - /etc/systemd/system/alerte-usb@.service
+    - /usr/local/bin/alerte-usb.sh
+    - /etc/lab-dacs
+  become: true
+  notify:
+    - Recharger udev
+    - Recharger systemd (système)
+
+- name: Récapitulatif
+  ansible.builtin.debug:
+    msg: "Détection d'accès retirée. Les paquets installés et le groupe input sont conservés."

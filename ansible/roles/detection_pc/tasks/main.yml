@@ -1,0 +1,8 @@
+---
+- name: Installer la détection d'accès
+  ansible.builtin.include_tasks: installer.yml
+  when: not (retirer | bool)
+
+- name: Retirer la détection d'accès
+  ansible.builtin.include_tasks: retirer.yml
+  when: retirer | bool

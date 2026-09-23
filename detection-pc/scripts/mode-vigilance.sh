@@ -3,7 +3,6 @@
 ATTENTE="$HOME/.local/state/vigilance-en-attente"
 ARME="$HOME/.local/state/mode-vigilance"
 mkdir -p "$(dirname "$ARME")"
-TOPIC=$(grep -oP '(?<=NTFY_TOPIC=).*' /etc/lab-alertes.conf 2>/dev/null)
 
 case "$1" in
   absent)

@@ -16,6 +16,8 @@ cd lab-dacs
 
 Le script installe Ansible au besoin, vous fait choisir vos propres identifiants, les chiffre (Ansible Vault) et déploie tout le serveur. À la fin, Grafana affiche déjà ses graphiques, AdGuard est déjà configuré avec ses listes de blocage, le pare-feu est actif et les alertes arrivent sur votre téléphone.
 
+Pour protéger aussi votre **poste de travail** (détection d'accès physique), lancez `./install-pc.sh` sur ce PC : voir [docs/06-detection-pc.md](docs/06-detection-pc.md).
+
 Guide pas-à-pas de A à Z (création de la VM, application ntfy, clé SSH, vérifications, dépannage) : **[docs/07-deploiement-ansible.md](docs/07-deploiement-ansible.md)**.
 
 ## Vue d'ensemble
@@ -74,12 +76,15 @@ Debian 13 · Fedora · Ubuntu · KVM/QEMU · libvirt · Ansible (+ Vault) · Doc
 ```
 lab-dacs/
 ├── README.md                  ← ce fichier
-├── install.sh                 ← déploiement guidé en une commande
+├── install.sh                 ← déploiement du serveur, en une commande
+├── install-pc.sh              ← installation de la détection d'accès sur le PC
 ├── docs/                      ← documentation détaillée (une page par sujet)
 ├── ansible/                   ← déploiement automatisé
-│   ├── site.yml               ← playbook principal
+│   ├── site.yml               ← playbook du serveur
+│   ├── pc.yml                 ← playbook du poste de travail
 │   ├── roles/                 ← secrets, docker, supervision, adguard,
-│   │                             alertes, parefeu, crowdsec, ssh
+│   │                             alertes, parefeu, crowdsec, ssh,
+│   │                             detection_pc
 │   ├── group_vars/            ← all.yml.example (modèle de secrets)
 │   └── inventory/             ← hosts.yml.example (modèle d'inventaire)
 ├── supervision/               ← Prometheus + Grafana + node-exporter
@@ -101,15 +106,13 @@ Ce test sur machine vierge a révélé une dizaine de défauts invisibles sur la
 ## Limites connues et suite du projet
 
 - Le reverse proxy **Nginx** et la stack **PostgreSQL** de la VM de développement ont été installés à la main et ne sont pas encore inclus dans le déploiement automatique.
-- Le module **détection d'accès au PC** s'installe encore à la main (pas d'installateur).
 
 Pistes d'évolution, par ordre de priorité :
 
 1. **Rôle `web`** : automatiser Nginx et PostgreSQL.
-2. **Installateur du module détection PC**.
-3. **Centralisation des journaux hors de la VM** — résister à l'effacement des traces par un attaquant root.
-4. **Tests automatisés (CI GitHub Actions)** — valider le déploiement à chaque modification.
-5. **Honeypot SSH** et **fichiers leurres** (honeytokens) branchés sur les alertes.
+2. **Centralisation des journaux hors de la VM** — résister à l'effacement des traces par un attaquant root.
+3. **Tests automatisés (CI GitHub Actions)** — valider le déploiement à chaque modification.
+4. **Honeypot SSH** et **fichiers leurres** (honeytokens) branchés sur les alertes.
 
 ---
 

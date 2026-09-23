@@ -1,0 +1,6 @@
+[Unit]
+Description=Alerte de branchement USB (%I)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/alerte-usb.sh %I

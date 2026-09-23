@@ -1,5 +1,30 @@
 # Détection d'accès au poste de travail
 
+## Installation
+
+Le module s'installe **sur le PC à protéger**, avec le compte habituel (pas en root) :
+
+```bash
+git clone https://github.com/souhayb-abdourahimi/lab-dacs.git
+cd lab-dacs
+./install-pc.sh
+```
+
+Le script réutilise le coffre du serveur s'il est présent sur la machine (même sujet ntfy, copie des photos sur le serveur). Sinon, il demande seulement le sujet ntfy, et les photos sont uniquement envoyées sur le téléphone. **Déconnectez-vous puis reconnectez-vous** à la fin : l'accès au clavier et à la souris (groupe `input`) n'est actif qu'à l'ouverture de session.
+
+Prérequis : Fedora, Debian ou Ubuntu, avec le bureau GNOME. Les systèmes immuables (Fedora Silverblue) ne sont pas pris en charge.
+
+Utilisation :
+
+| Commande | Effet |
+|----------|-------|
+| `absent` | met la vigilance en attente ; elle s'arme au verrouillage (Super+L) |
+| `present` | désarme la vigilance |
+| `vigilance` | affiche l'état de la vigilance |
+| `photo-on` / `photo-off` | autorise ou interdit la photo webcam (désactivée par défaut) |
+
+Pour tout retirer : `./install-pc.sh --retirer`.
+
 ## Objectif
 
 Détecter quand quelqu'un accède physiquement à mon PC en mon absence, et réagir immédiatement : alerter, verrouiller l'écran, et photographier l'intrus. Contrairement aux autres briques qui protègent le serveur, celle-ci protège la **machine de travail** elle-même. Les alertes partent du PC et remontent au serveur, dans la continuité du système ntfy.
@@ -59,10 +84,31 @@ Une webcam qui se déclenche seule doit être maîtrisée. Trois garde-fous :
 
 **Droits d'accès aux périphériques d'entrée.** Lire le clavier et la souris via `evdev` demande d'appartenir au groupe `input`. Ajout du compte au groupe, effectif après reconnexion.
 
+## Problèmes découverts en automatisant le module
+
+Avant d'écrire le rôle Ansible, le module a été relu à la recherche de tout ce qui avait été réglé à la main sur le PC de développement, en appliquant la leçon du premier déploiement (voir la partie 2 du [journal de dépannage](08-depannage.md)). Dix problèmes sont apparus, dont plusieurs invisibles sur la machine d'origine :
+
+- **Le service `alerte-usb@.service`**, appelé par la règle udev, **n'était pas dans le dépôt** : aucune alerte USB chez un autre utilisateur.
+- **Le nom de l'appareil USB n'arrivait jamais au script** : les variables d'environnement de udev ne sont pas transmises au service systemd. Le nom est désormais passé en argument (`%I`).
+- **La lecture du sujet ntfy était incohérente** : deux scripts utilisaient `sudo` (qui exigeait une règle sudoers faite à la main), et le script Python lisait sans `sudo` un fichier réservé à root, donc **l'alerte d'intrusion ne partait pas**. Tous les scripts lisent maintenant un fichier de configuration dédié, sans `sudo`.
+- **Des valeurs codées en dur** : le chemin `/home/souhayb`, l'adresse et l'utilisateur du serveur de preuves.
+- **Le dossier `~/preuves` n'était jamais créé** sur le serveur.
+- **Le groupe `input`** n'est actif qu'après reconnexion, et le script de surveillance plantait s'il ne pouvait pas lire le clavier : il s'arrête maintenant proprement avec un message.
+- **Les commandes `absent`, `photo-on`...** n'existaient que sur le PC de développement : elles sont installées comme de petits scripts dans `~/.local/bin`, utilisables depuis n'importe quel shell.
+- **Les noms de paquets diffèrent** entre Fedora et Ubuntu (`ffmpeg-free` et `ffmpeg`, `libnotify` et `libnotify-bin`) : le rôle vérifie les **commandes** présentes et n'installe que ce qui manque, ce qui évite aussi un conflit avec le ffmpeg de RPM Fusion.
+
+Le test du rôle sur une machine vierge en a révélé trois autres :
+
+- **Index apt périmé** : sur un PC rarement mis à jour, apt réclamait une version de paquet supprimée des miroirs (erreur 404). L'installation met maintenant l'index à jour d'abord.
+- **Plantage sans serveur configuré** : Ansible évalue la cible d'une tâche déléguée **avant** sa condition `when`. Sur un PC sans serveur, la tâche qui crée `~/preuves` plantait alors qu'elle aurait dû être ignorée.
+- **Rechargement de udev impossible sans démon udev** (WSL, conteneur) : ce rechargement n'est pas indispensable, udev surveille lui-même son dossier de règles. Il ne bloque plus le déploiement.
+
 ## Limites connues et pistes d'amélioration
 
+- **Bureau GNOME uniquement** pour les alertes de verrouillage et de déverrouillage, qui reposent sur un signal D-Bus propre à GNOME. Sur un autre bureau, l'installateur prévient ; USB et détection d'activité restent actives.
+- **Copie des preuves avec une clé SSH protégée par une phrase de passe** : le service ne peut pas la saisir, la copie est alors ignorée (la photo part quand même sur le téléphone).
 - **Un intrus qui connaît le mot de passe** désarme la vigilance en déverrouillant. Mais il a déjà déclenché l'alerte d'intrusion **avant** le verrouillage : le signalement a eu lieu.
 - **Détection au niveau de l'écran de connexion (GDM), pas seulement en session.** Piste : brancher PAM sur les échecs d'authentification pour capturer une tentative *avant* même l'ouverture de session (plusieurs mots de passe ratés → photo silencieuse).
 - **Réécriture du moteur en Go.** Les scripts actuels (Bash + Python) pourraient devenir un binaire unique : gestion concurrente (clavier, webcam, réseau) via goroutines, et binaire compilé plus difficile à altérer qu'un script en clair.
 - **Surveillance réseau en mode vigilance.** Détecter une requête ARP suspecte ou un scan de ports pendant l'absence, en mode alerte d'abord (le durcissement automatique du pare-feu présente un risque de blocage de soi-même).
-- **Déploiement automatisé (Ansible).** Remplacer la copie manuelle des scripts, la configuration des services systemd et des permissions par un playbook unique.
+

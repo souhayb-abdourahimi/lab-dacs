@@ -1,0 +1,239 @@
+---
+# ---------- 1. Vérifications : échouer tôt, avec un message clair ----------
+- name: Vérifier que le système est pris en charge (Fedora ou Debian/Ubuntu)
+  ansible.builtin.assert:
+    that: ansible_facts['os_family'] in ['RedHat', 'Debian']
+    fail_msg: "Système non pris en charge : {{ ansible_facts['distribution'] }}. Fedora, Debian ou Ubuntu requis."
+
+- name: Détecter un système immuable (Fedora Silverblue, Kinoite...)
+  ansible.builtin.stat:
+    path: /run/ostree-booted
+  register: ostree
+
+- name: Refuser les systèmes immuables
+  ansible.builtin.assert:
+    that: not ostree.stat.exists
+    fail_msg: "Système immuable détecté (Silverblue...) : les paquets ne peuvent pas être installés par dnf. Non pris en charge."
+
+- name: Refuser un lancement en root
+  ansible.builtin.assert:
+    that: utilisateur != 'root'
+    fail_msg: "Lancez install-pc.sh avec votre compte habituel, pas en root : c'est ce compte qui sera protégé."
+
+- name: Vérifier que le sujet ntfy est connu
+  ansible.builtin.assert:
+    that: ntfy_topic is defined and ntfy_topic | length > 0
+    fail_msg: "Sujet ntfy absent : lancez le déploiement via install-pc.sh."
+
+- name: Avertir si le bureau n'est pas GNOME
+  ansible.builtin.debug:
+    msg: >-
+      Attention : bureau détecté « {{ lookup('env', 'XDG_CURRENT_DESKTOP') }} ».
+      Les alertes de verrouillage et de déverrouillage reposent sur un signal propre à GNOME :
+      elles ne fonctionneront pas. USB et détection d'activité restent actives.
+  when: "'GNOME' not in lookup('env', 'XDG_CURRENT_DESKTOP')"
+
+# ---------- 2. Dépendances : n'installer que ce qui manque ----------
+# On teste la commande plutôt que le paquet : évite les conflits (ex. ffmpeg de RPM Fusion).
+- name: Repérer les commandes manquantes
+  ansible.builtin.shell: "command -v {{ item }}"
+  loop: [curl, ffmpeg, notify-send, dbus-monitor, udevadm]
+  register: commandes
+  changed_when: false
+  failed_when: false
+
+- name: Repérer le module Python evdev
+  ansible.builtin.command: python3 -c "import evdev"
+  register: py_evdev
+  changed_when: false
+  failed_when: false
+
+- name: Construire la liste des paquets à installer
+  vars:
+    noms:
+      Debian: {curl: curl, ffmpeg: ffmpeg, notify-send: libnotify-bin, dbus-monitor: dbus-bin, udevadm: udev}
+      RedHat: {curl: curl, ffmpeg: ffmpeg-free, notify-send: libnotify, dbus-monitor: dbus-tools, udevadm: systemd-udev}
+  ansible.builtin.set_fact:
+    paquets_manquants: >-
+      {{ (commandes.results | selectattr('rc', 'ne', 0) | map(attribute='item')
+          | map('extract', noms[ansible_facts['os_family']]) | list)
+         + (['python3-evdev'] if py_evdev.rc != 0 else []) }}
+
+# Sur Debian/Ubuntu, l'index des paquets doit être à jour, sinon apt réclame
+# des versions supprimées des miroirs (erreur 404) sur un PC rarement mis à jour.
+- name: Installer les paquets manquants (Debian, Ubuntu)
+  ansible.builtin.apt:
+    name: "{{ paquets_manquants }}"
+    state: present
+    update_cache: true
+  become: true
+  when: paquets_manquants | length > 0 and ansible_facts['os_family'] == 'Debian'
+
+- name: Installer les paquets manquants (Fedora)
+  ansible.builtin.dnf:
+    name: "{{ paquets_manquants }}"
+    state: present
+  become: true
+  when: paquets_manquants | length > 0 and ansible_facts['os_family'] == 'RedHat'
+
+# ---------- 3. Droits : groupe input pour lire clavier et souris ----------
+- name: Ajouter l'utilisateur au groupe input
+  ansible.builtin.user:
+    name: "{{ utilisateur }}"
+    groups: input
+    append: true
+  become: true
+  register: groupe_input
+
+# ---------- 4. Configuration : secrets hors du dépôt, sans sudo ----------
+- name: Déterminer le serveur qui reçoit les copies de preuves
+  ansible.builtin.set_fact:
+    serveur_preuves: >-
+      {{ (hostvars[groups['serveurs'][0]]['ansible_user'] ~ '@' ~ hostvars[groups['serveurs'][0]]['ansible_host'])
+         if (groups['serveurs'] | default([]) | length > 0) else '' }}
+
+- name: Dossier de configuration utilisateur
+  ansible.builtin.file:
+    path: "{{ maison }}/.config/lab-dacs"
+    state: directory
+    mode: "0700"
+
+- name: Configuration lue par les scripts utilisateur
+  ansible.builtin.template:
+    src: detection.conf.j2
+    dest: "{{ maison }}/.config/lab-dacs/detection.conf"
+    mode: "0600"
+
+- name: Dossier de configuration système (alerte USB, lancée en root)
+  ansible.builtin.file:
+    path: /etc/lab-dacs
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  become: true
+
+- name: Configuration lue par l'alerte USB
+  ansible.builtin.template:
+    src: detection.conf.j2
+    dest: /etc/lab-dacs/detection.conf
+    owner: root
+    group: root
+    mode: "0600"
+  become: true
+
+# ---------- 5. Scripts et commandes ----------
+- name: Dossiers utilisateur
+  ansible.builtin.file:
+    path: "{{ maison }}/{{ item }}"
+    state: directory
+    mode: "0755"
+  loop: [.local/bin, .local/state, .config/systemd/user, .config/systemd/user/default.target.wants]
+
+- name: Installer les scripts de détection
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../detection-pc/scripts/{{ item }}"
+    dest: "{{ maison }}/.local/bin/{{ item }}"
+    mode: "0755"
+  loop:
+    - alerte-deverrouillage.sh
+    - surveillance-activite.py
+    - capture-intrus.sh
+    - mode-vigilance.sh
+    - photo-toggle.sh
+
+- name: Installer les commandes absent, present, vigilance, photo-on, photo-off
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../detection-pc/commandes/{{ item }}"
+    dest: "{{ maison }}/.local/bin/{{ item }}"
+    mode: "0755"
+  loop: [absent, present, vigilance, photo-on, photo-off]
+
+- name: Installer le script d'alerte USB (exécuté par root)
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../detection-pc/scripts/alerte-usb.sh"
+    dest: /usr/local/bin/alerte-usb.sh
+    owner: root
+    group: root
+    mode: "0755"
+  become: true
+
+# ---------- 6. Alerte USB : service systemd + règle udev ----------
+- name: Installer le service d'alerte USB
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../detection-pc/systemd/alerte-usb@.service"
+    dest: /etc/systemd/system/alerte-usb@.service
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify: Recharger systemd (système)
+
+- name: Installer la règle udev
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../detection-pc/udev/99-alerte-usb.rules"
+    dest: /etc/udev/rules.d/99-alerte-usb.rules
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  notify: Recharger udev
+
+# ---------- 7. Services utilisateur ----------
+- name: Installer les services utilisateur
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../detection-pc/systemd/{{ item }}"
+    dest: "{{ maison }}/.config/systemd/user/{{ item }}"
+    mode: "0644"
+  loop:
+    - alerte-deverrouillage.service
+    - surveillance-activite.service
+
+# Activation par lien symbolique : fonctionne même sans session graphique ouverte
+- name: Activer les services à l'ouverture de session
+  ansible.builtin.file:
+    src: "{{ maison }}/.config/systemd/user/{{ item }}"
+    dest: "{{ maison }}/.config/systemd/user/default.target.wants/{{ item }}"
+    state: link
+  loop:
+    - alerte-deverrouillage.service
+    - surveillance-activite.service
+
+- name: Détecter une session utilisateur active
+  ansible.builtin.stat:
+    path: "/run/user/{{ ansible_facts['user_uid'] }}/bus"
+  register: bus_session
+
+- name: Redémarrer les services dans la session en cours
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    scope: user
+    state: restarted
+    daemon_reload: true
+  loop:
+    - alerte-deverrouillage.service
+    - surveillance-activite.service
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ansible_facts['user_uid'] }}"
+  when: bus_session.stat.exists
+
+# ---------- 8. Dossier des preuves sur le serveur ----------
+- name: Créer le dossier des preuves sur le serveur
+  ansible.builtin.file:
+    path: "~/preuves"
+    state: directory
+    mode: "0700"
+  # default() : Ansible évalue delegate_to AVANT le when ; sans groupe serveurs, il planterait
+  delegate_to: "{{ (groups['serveurs'] | default(['localhost']))[0] }}"
+  become: false
+  when: serveur_preuves | length > 0
+
+# ---------- 9. Bilan ----------
+- name: Récapitulatif
+  ansible.builtin.debug:
+    msg:
+      - "Détection d'accès installée pour {{ utilisateur }}."
+      - "Commandes : absent (puis Super+L), present, vigilance, photo-on, photo-off."
+      - "La photo webcam est DÉSACTIVÉE par défaut : activez-la avec photo-on."
+      - "{{ ('Copie des preuves vers ' ~ serveur_preuves) if serveur_preuves | length > 0 else 'Aucun serveur configuré : les photos sont seulement envoyées sur le téléphone.' }}"
+      - "{{ 'IMPORTANT : déconnectez-vous puis reconnectez-vous pour activer le groupe input et les commandes.' if groupe_input.changed else 'Groupe input déjà actif.' }}"
