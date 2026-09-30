@@ -73,6 +73,29 @@
     enabled: true
     state: started
 
+# Paquets Debian/Ubuntu : le bouncer s'inscrit dans pending-registration et son
+# service refuse de démarrer tant que ce fichier existe (ConditionPathExists).
+# Seul le démarrage de crowdsec traite l'inscription : si crowdsec tournait déjà
+# quand le bouncer a été installé, il faut le redémarrer, sinon le bouncer ne
+# démarre jamais.
+- name: Repérer une inscription de bouncer en attente
+  ansible.builtin.stat:
+    path: /var/lib/crowdsec/pending-registration
+  register: crowdsec_inscription
+
+- name: Redémarrer CrowdSec pour inscrire le bouncer
+  ansible.builtin.systemd:
+    name: crowdsec
+    state: restarted
+  when: crowdsec_inscription.stat.exists
+
+- name: Attendre la fin de l'inscription
+  ansible.builtin.wait_for:
+    path: /var/lib/crowdsec/pending-registration
+    state: absent
+    timeout: 60
+  when: crowdsec_inscription.stat.exists
+
 - name: Activer et démarrer le bouncer
   ansible.builtin.systemd:
     name: crowdsec-firewall-bouncer
