@@ -61,6 +61,29 @@
       loop_control:
         label: "{{ item.item }}"
 
+    # Blocage réel : la décision doit arriver, à la bonne adresse, dans le pare-feu
+    # du noyau (le bouncer 0.0.25 des distributions l'inscrivait à l'envers en nftables)
+    - name: Bannir une IP de test
+      ansible.builtin.command: cscli decisions add --ip 203.0.113.7 --duration 10m --reason molecule
+      changed_when: false
+
+    - name: L'IP bannie est bloquée par le pare-feu (nftables ou ipset)
+      ansible.builtin.shell: |
+        nft list ruleset 2>/dev/null
+        ipset list 2>/dev/null
+        true
+      args:
+        executable: /bin/bash
+      register: verif_parefeu
+      until: "'203.0.113.7' in verif_parefeu.stdout"
+      retries: 12
+      delay: 5
+      changed_when: false
+
+    - name: Lever le bannissement de test
+      ansible.builtin.command: cscli decisions delete --ip 203.0.113.7
+      changed_when: false
+
     - name: Lire la configuration effective de sshd
       ansible.builtin.command: /usr/sbin/sshd -T
       register: verif_sshd
