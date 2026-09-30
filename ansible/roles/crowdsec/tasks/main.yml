@@ -73,28 +73,43 @@
     enabled: true
     state: started
 
-# Paquets Debian/Ubuntu : le bouncer s'inscrit dans pending-registration et son
-# service refuse de démarrer tant que ce fichier existe (ConditionPathExists).
-# Seul le démarrage de crowdsec traite l'inscription : si crowdsec tournait déjà
-# quand le bouncer a été installé, il faut le redémarrer, sinon le bouncer ne
-# démarre jamais.
+# Paquets Debian/Ubuntu : quand l'API locale n'est pas prête à l'installation
+# du bouncer, le paquet crée /var/lib/crowdsec/pending-registration et le service
+# du bouncer refuse de démarrer tant que ce fichier existe (ConditionPathExists) :
+# sans rien faire, le bouncer ne démarre jamais. On l'inscrit donc nous-mêmes :
+# clé d'API créée par cscli, écrite dans sa configuration, marqueur supprimé.
 - name: Repérer une inscription de bouncer en attente
   ansible.builtin.stat:
     path: /var/lib/crowdsec/pending-registration
   register: crowdsec_inscription
 
-- name: Redémarrer CrowdSec pour inscrire le bouncer
-  ansible.builtin.systemd:
-    name: crowdsec
-    state: restarted
+- name: Inscrire le bouncer auprès de l'API locale
   when: crowdsec_inscription.stat.exists
+  block:
+    # Une inscription partielle antérieure bloquerait « bouncers add »
+    - name: Supprimer une éventuelle inscription incomplète
+      ansible.builtin.command: cscli bouncers delete crowdsec-firewall-bouncer
+      register: crowdsec_suppression
+      changed_when: crowdsec_suppression.rc == 0
+      failed_when: false
 
-- name: Attendre la fin de l'inscription
-  ansible.builtin.wait_for:
-    path: /var/lib/crowdsec/pending-registration
-    state: absent
-    timeout: 60
-  when: crowdsec_inscription.stat.exists
+    - name: Créer la clé d'API du bouncer
+      ansible.builtin.command: cscli bouncers add crowdsec-firewall-bouncer -o raw
+      register: crowdsec_cle_bouncer
+      changed_when: true
+      no_log: true
+
+    - name: Écrire la clé dans la configuration du bouncer
+      ansible.builtin.lineinfile:
+        path: /etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml
+        regexp: '^api_key:'
+        line: "api_key: {{ crowdsec_cle_bouncer.stdout | trim }}"
+      no_log: true
+
+    - name: Retirer le marqueur d'inscription en attente
+      ansible.builtin.file:
+        path: /var/lib/crowdsec/pending-registration
+        state: absent
 
 - name: Activer et démarrer le bouncer
   ansible.builtin.systemd:

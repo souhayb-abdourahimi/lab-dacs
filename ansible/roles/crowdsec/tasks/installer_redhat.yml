@@ -1,5 +1,13 @@
 ---
 # Fedora et RHEL/Rocky/Alma ne fournissent pas CrowdSec : dépôt officiel.
+# Les paquets sont signés par plusieurs clés (liste de la documentation CrowdSec) :
+# elles sont importées d'avance, dnf ne pouvant pas les accepter sans interaction.
+- name: Importer les clés de signature du dépôt CrowdSec
+  ansible.builtin.rpm_key:
+    key: "{{ item }}"
+    state: present
+  loop: "{{ crowdsec_depot_cles_rpm }}"
+
 - name: Déclarer le dépôt CrowdSec
   ansible.builtin.yum_repository:
     name: crowdsec_crowdsec
@@ -7,7 +15,7 @@
     baseurl: "{{ crowdsec_depot_rpm }}"
     gpgcheck: true
     repo_gpgcheck: true
-    gpgkey: "{{ crowdsec_depot_cle }}"
+    gpgkey: "{{ crowdsec_depot_cles_rpm }}"
     sslverify: true
     metadata_expire: "3600"
     enabled: true
