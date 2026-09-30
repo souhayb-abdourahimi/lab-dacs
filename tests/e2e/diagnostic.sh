@@ -16,8 +16,9 @@ if ! "${SSH[@]}" true 2>/dev/null; then
   echo "VM injoignable en SSH par clé : pas de diagnostic interne."
   exit 0
 fi
-# Mot de passe sudo sur l'entrée standard, jamais en argument
-printf '%s\n' "${E2E_SUDO_PW:-}" | "${SSH[@]}" "sudo -S -p '' bash -s" <<'DIAG' 2>&1
+# Entrée standard : d'abord le mot de passe sudo (lu par sudo -S, jamais en
+# argument), puis le script de diagnostic (lu par bash -s)
+{ printf '%s\n' "${E2E_SUDO_PW:-}"; cat <<'DIAG'
 echo "=== Services"
 systemctl --no-pager --failed
 for s in docker crowdsec crowdsec-firewall-bouncer ssh sshd systemd-resolved; do
@@ -33,4 +34,5 @@ done
 tail -n 40 /var/log/crowdsec-firewall-bouncer.log 2>/dev/null
 echo "=== sshd"; sshd -T | grep -Ei '^(permitrootlogin|passwordauthentication|kbdinteractive)'
 DIAG
+} | "${SSH[@]}" "sudo -S -p '' bash -s" 2>&1
 exit 0

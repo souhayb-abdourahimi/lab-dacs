@@ -73,6 +73,13 @@
     enabled: true
     state: started
 
+# Appliquer maintenant les redémarrages en attente (CrowdSec après un changement
+# d'acquisition ou de parser) : sinon l'API locale redémarre en fin de play, APRÈS
+# la vérification du bouncer, qui met ensuite un temps variable à se reconnecter
+# (constaté sur VM : ~30 s pendant lesquelles aucune décision n'est appliquée).
+- name: Appliquer les redémarrages de CrowdSec en attente
+  ansible.builtin.meta: flush_handlers
+
 # Paquets Debian/Ubuntu : quand l'API locale n'est pas prête à l'installation
 # du bouncer, le paquet crée /var/lib/crowdsec/pending-registration et le service
 # du bouncer refuse de démarrer tant que ce fichier existe (ConditionPathExists) :

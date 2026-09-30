@@ -127,7 +127,14 @@ vm_sudo "cscli decisions add --ip $IP_TEST --duration 10m --reason e2e" >/dev/nu
 regles_parefeu() { vm_sudo "nft list ruleset" 2>/dev/null; vm_sudo "ipset list" 2>/dev/null; }
 ip_bloquee() { regles_parefeu | grep -qF "$IP_TEST"; }
 ip_liberee() { ! ip_bloquee; }
-controle "$IP_TEST bloquée dans le pare-feu (nft/ipset)" reessayer 12 5 ip_bloquee
+# (le bouncer interroge l'API toutes les 10 s, avec un délai de reconnexion possible)
+controle "$IP_TEST bloquée dans le pare-feu (nft/ipset)" reessayer 24 5 ip_bloquee
+if ! ip_bloquee; then
+  echo "  --- éléments pour comprendre :"
+  vm_sudo "grep -H mode /etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml*" 2>&1 | sed 's/^/  /'
+  regles_parefeu | grep -E 'table|set |elements|Members|^[0-9]' | head -20 | sed 's/^/  /'
+  vm_sudo "tail -n 8 /var/log/crowdsec-firewall-bouncer.log" 2>&1 | sed 's/^/  /'
+fi
 vm_sudo "cscli decisions delete --ip $IP_TEST" >/dev/null
 controle "$IP_TEST retirée du pare-feu après suppression" reessayer 12 5 ip_liberee
 
