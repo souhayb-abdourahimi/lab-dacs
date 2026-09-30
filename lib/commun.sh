@@ -88,7 +88,7 @@ installer_ansible_pipx() {
   export PATH="$HOME/.local/bin:$PATH"
 
   if ! py="$(python_recent)"; then
-    [[ "$(gestionnaire_paquets)" == dnf ]] && installer_paquets python3.12 || true
+    if [[ "$(gestionnaire_paquets)" == dnf ]]; then installer_paquets python3.12 || true; fi
     py="$(python_recent)" || { erreur "Python >= 3.10 introuvable (requis par ansible-core)."; return 1; }
   fi
 
