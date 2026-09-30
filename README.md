@@ -35,7 +35,7 @@ Guide pas-à-pas de A à Z (création de la VM, application ntfy, clé SSH, vér
 │             │ ──────DNS (53)────────▶ │  ┌────────────────────────┐  │
 │  navigateur │ ◀─────filtrage─────────  │  │ AdGuard Home (Docker)  │  │
 │             │                         │  ├────────────────────────┤  │
-│  détection  │ ──preuves (scp)───────▶ │  │ Prometheus + Grafana   │  │
+│  détection  │ ──preuves (scp)───────▶ │  │ Prometheus/Loki/Grafana│  │
 │  d'accès    │                         │  │ node-exporter (Docker) │  │
 └─────────────┘                         │  ├────────────────────────┤  │
        ▲                                │  │ CrowdSec + bouncer     │  │
@@ -51,7 +51,7 @@ Guide pas-à-pas de A à Z (création de la VM, application ntfy, clé SSH, vér
 | Document | Contenu |
 |----------|---------|
 | [00 — Architecture](docs/00-architecture.md) | Choix techniques et schéma réseau |
-| [01 — Supervision](docs/01-supervision.md) | Prometheus, node-exporter, Grafana |
+| [01 — Supervision](docs/01-supervision.md) | Prometheus, node-exporter, Grafana, Loki + Alloy (tableau de bord « Sécurité ») |
 | [02 — Durcissement SSH](docs/02-ssh.md) | Connexion par clé, root interdit |
 | [03 — CrowdSec](docs/03-crowdsec.md) | Détection et blocage des attaques |
 | [04 — Alertes ntfy](docs/04-alertes.md) | Notifications temps réel sur mobile |
@@ -75,7 +75,7 @@ Le [modèle de menaces](docs/09-threat-model.md) détaille précisément le pér
 
 ## Stack technique
 
-Debian · Ubuntu · Fedora · Rocky/Alma · Arch · openSUSE · KVM/QEMU · libvirt · Ansible (+ Vault) · Docker & Docker Compose · Prometheus · Grafana · node-exporter · CrowdSec · ufw · firewalld · SELinux · nftables · AdGuard Home · systemd (services & timers) · PAM · udev · evdev · ffmpeg · ntfy · Bash · Python · Git
+Debian · Ubuntu · Fedora · Rocky/Alma · Arch · openSUSE · KVM/QEMU · libvirt · Ansible (+ Vault) · Docker & Docker Compose · Prometheus · Grafana · node-exporter · Loki · Grafana Alloy · CrowdSec · ufw · firewalld · SELinux · nftables · AdGuard Home · systemd (services & timers) · PAM · udev · evdev · ffmpeg · ntfy · Bash · Python · Git
 
 ## Structure du dépôt
 
@@ -97,7 +97,7 @@ lab-dacs/
 │   │                             detection_pc
 │   ├── group_vars/            ← all.yml.example (modèle de secrets)
 │   └── inventory/             ← hosts.yml.example (modèle d'inventaire)
-├── supervision/               ← Prometheus + Grafana + node-exporter
+├── supervision/               ← Prometheus + Grafana + node-exporter + Loki + Alloy
 ├── adguard/                   ← filtre DNS AdGuard Home
 ├── alertes/                   ← alertes serveur (SSH, sudo, CrowdSec, AdGuard)
 └── detection-pc/              ← détection d'accès au poste de travail
@@ -157,7 +157,7 @@ Distributions : Fedora, Debian, Ubuntu (prises en charge d'origine), Arch Linux 
 À chaque push, GitHub Actions lance :
 
 - **lint** : shellcheck, yamllint, ansible-lint (profil *production*) et ruff (lint et format du Python) ;
-- **molecule** : `site.yml` déployé dans un conteneur systemd sur **Debian 12, Debian 13, Ubuntu 24.04 et Rocky 9**. Un second passage doit afficher **0 changed** (idempotence). Viennent ensuite des vérifications fonctionnelles : Grafana répond sur `127.0.0.1:3000`, AdGuard répond au DNS sur le port 53, CrowdSec et son bouncer sont actifs, la connexion root et les mots de passe sont refusés par sshd, les timers d'alerte tournent.
+- **molecule** : `site.yml` déployé dans un conteneur systemd sur **Debian 12, Debian 13, Ubuntu 24.04 et Rocky 9**. Un second passage doit afficher **0 changed** (idempotence). Viennent ensuite des vérifications fonctionnelles : Grafana répond sur `127.0.0.1:3000`, Loki reçoit le journal et le tableau de bord « Sécurité » est provisionné, AdGuard répond au DNS sur le port 53, CrowdSec et son bouncer sont actifs, la connexion root et les mots de passe sont refusés par sshd, les timers d'alerte tournent.
 
 En conteneur, le pare-feu n'est pas appliqué et sshd n'est pas redémarré (variable `lab_test_conteneur`). La configuration SSH est tout de même validée (`sshd -t`) et vérifiée (`sshd -T`).
 
@@ -167,6 +167,7 @@ En conteneur, le pare-feu n'est pas appliqué et sshd n'est pas redémarré (var
   - ufw actif, seuls 22/tcp et 53 ouverts, et un service de test réellement injoignable de l'extérieur ;
   - bouncer CrowdSec inscrit, et blocage effectif d'une IP dans le pare-feu (ipset) ;
   - Grafana via un tunnel SSH, et AdGuard qui répond au DNS ;
+  - dans Loki, l'IP bannie et un domaine réellement bloqué par AdGuard. Chaque compteur du tableau de bord « Sécurité » (SSH, sudo, IP bannies, domaines bloqués) est évalué par Grafana avec sa propre requête, et doit être non nul ;
   - alertes ntfy reçues pour une connexion SSH et un `sudo`, sur un sujet aléatoire propre au test : via `ntfy.sh` (Ubuntu) et via un serveur ntfy **auto-hébergé** lancé sur le runner (Debian).
 
   Le déploiement est ensuite relancé : il doit afficher **0 changed**, et tout est revérifié. Les mots de passe de test sont tirés au hasard à chaque exécution (avec `' : # " $`) et masqués dans les journaux. Détails : [`tests/e2e/`](tests/e2e/).

@@ -1,4 +1,4 @@
-# Supervision — Prometheus, node-exporter, Grafana
+# Supervision — Prometheus, node-exporter, Loki, Alloy, Grafana
 
 ## Objectif
 
@@ -13,6 +13,33 @@ Trois conteneurs Docker qui se passent les données en chaîne :
 - **Grafana** — l'écran. Il transforme les données de Prometheus en graphiques lisibles.
 
 Le tableau de bord utilisé est le *Node Exporter Full* (ID 1860), une référence de la communauté.
+
+## Journaux et tableau de bord « Sécurité »
+
+Deux conteneurs de plus s'occupent des **journaux** :
+
+- **Alloy** — le collecteur. Il lit le journal systemd du serveur, monté en lecture seule, et l'envoie à Loki.
+- **Loki** — l'archive des journaux, conservés 15 jours comme les métriques. Il n'a aucun port publié.
+
+Tout ce qui compte pour la sécurité passe par le journal systemd :
+
+| Événement | Source dans le journal |
+| --- | --- |
+| Connexion SSH réussie ou échouée | `sshd` (ou `sshd-session`, OpenSSH ≥ 9.8) |
+| Utilisation de `sudo` | `sudo` (lignes `COMMAND=`) |
+| IP bannie par CrowdSec | `lab-securite`, écrit par `alerte-crowdsec.sh` (`evenement=ip_bannie ip=… raison=…`) |
+| Domaine bloqué par AdGuard | `lab-dns`, écrit par `alerte-adguard.sh` (`evenement=domaine_bloque domaine=… liste=…`) |
+
+Grafana affiche le tableau de bord **Sécurité**, provisionné automatiquement (Tableaux de bord → Sécurité). On y trouve :
+
+- les compteurs de la période : connexions SSH, sudo, IP bannies, domaines bloqués ;
+- une courbe de tous ces événements dans le temps, échecs SSH compris ;
+- le détail des connexions et des commandes sudo ;
+- les IP bannies et les domaines bloqués les plus fréquents.
+
+Les pubs et traqueurs bloqués y figurent aussi. En revanche, seuls les sites **dangereux** (phishing, malware) déclenchent une notification ntfy.
+
+Le journal doit être conservé sur disque (`/var/log/journal`). C'est le cas d'origine sur Debian/Ubuntu. Sur Fedora/RHEL, le déploiement crée ce dossier.
 
 ## Sécurité
 

@@ -1,0 +1,38 @@
+// Grafana Alloy : lit le journal systemd de l'hôte et l'envoie à Loki.
+// Les événements de sécurité y sont tous : connexions SSH (sshd), sudo, et les
+// lignes écrites par les scripts d'alerte (lab-securite : IP bannies,
+// lab-dns : domaines bloqués).
+
+// Étiquettes utiles aux requêtes du tableau de bord Sécurité
+loki.relabel "journal" {
+  forward_to = []
+
+  rule {
+    source_labels = ["__journal_syslog_identifier"]
+    target_label  = "identifiant"
+  }
+
+  rule {
+    source_labels = ["__journal__systemd_unit"]
+    target_label  = "unite"
+  }
+
+  rule {
+    source_labels = ["__journal__hostname"]
+    target_label  = "hote"
+  }
+}
+
+loki.source.journal "systeme" {
+  path          = "/var/log/journal"
+  max_age       = "12h"
+  relabel_rules = loki.relabel.journal.rules
+  labels        = {job = "journal"}
+  forward_to    = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

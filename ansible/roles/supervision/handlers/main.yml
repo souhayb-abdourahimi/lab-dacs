@@ -1,0 +1,4 @@
+---
+- name: Basculer le journal sur le disque
+  ansible.builtin.command: journalctl --flush
+  changed_when: true
