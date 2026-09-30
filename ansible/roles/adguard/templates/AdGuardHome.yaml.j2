@@ -6,8 +6,8 @@ http:
   address: 0.0.0.0:80
   session_ttl: 720h
 users:
-  - name: {{ adguard_auth.split(':')[0] }}
-    password: {{ adguard_password_hash }}
+  - name: {{ adguard_user | to_json }}
+    password: {{ adguard_password_hash | to_json }}
 auth_attempts: 5
 block_auth_min: 15
 http_proxy: ""

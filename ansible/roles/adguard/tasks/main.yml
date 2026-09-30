@@ -20,16 +20,23 @@
     group: "{{ ansible_user }}"
     mode: "0644"
 
-# Génère le hash bcrypt du mot de passe AdGuard (partie après ':' dans adguard_auth)
+# Génère le hash bcrypt du mot de passe AdGuard (adguard_password, préparé par le rôle secrets)
 - name: Installer python3-bcrypt (pour hacher le mot de passe AdGuard)
   ansible.builtin.apt:
     name: python3-bcrypt
     state: present
     update_cache: true
 
+# Le mot de passe passe par l'entrée standard : il n'apparaît ni dans le code
+# Python ni dans la ligne de commande (ps), et aucun caractère ne peut casser la commande.
 - name: Générer le hash bcrypt du mot de passe AdGuard
-  ansible.builtin.command: >
-    python3 -c "import bcrypt; print(bcrypt.hashpw('{{ adguard_auth.split(':')[1] }}'.encode(), bcrypt.gensalt()).decode())"
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -c
+      - "import sys, bcrypt; print(bcrypt.hashpw(sys.stdin.buffer.read(), bcrypt.gensalt()).decode())"
+    stdin: "{{ adguard_password }}"
+    stdin_add_newline: false
   register: adguard_hash
   changed_when: false
   no_log: true
