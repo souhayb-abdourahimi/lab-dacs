@@ -20,5 +20,6 @@
     # Sur une vraie machine, systemd monte / en « shared » ; dans un conteneur
     # il est privé, et node-exporter (montage /:/host:rslave) refuserait de démarrer.
     - name: Rendre / partagé, comme sur un hôte systemd
-      ansible.builtin.command: mount --make-rshared /
+      # (le module mount ne gère pas la propagation des montages)
+      ansible.builtin.command: mount --make-rshared /  # noqa: command-instead-of-module
       changed_when: false
