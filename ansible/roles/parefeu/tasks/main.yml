@@ -2,10 +2,12 @@
 # Pare-feu : tout refuser en entrée, sauf SSH et DNS (AdGuard).
 #   - Debian, Ubuntu : ufw
 #   - Fedora, Rocky, Alma : firewalld (pare-feu natif, déjà présent en général)
+# lab_test_conteneur (tests Molecule) : aucun pare-feu, un conteneur ne peut pas
+# piloter ufw/firewalld sans perturber l'hôte de test.
 - name: Pare-feu ufw (Debian, Ubuntu)
   ansible.builtin.include_tasks: ufw.yml
-  when: ansible_facts['os_family'] == 'Debian'
+  when: ansible_facts['os_family'] == 'Debian' and not (lab_test_conteneur | default(false) | bool)
 
 - name: Pare-feu firewalld (Fedora, RHEL)
   ansible.builtin.include_tasks: firewalld.yml
-  when: ansible_facts['os_family'] == 'RedHat'
+  when: ansible_facts['os_family'] == 'RedHat' and not (lab_test_conteneur | default(false) | bool)

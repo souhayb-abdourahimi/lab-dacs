@@ -28,26 +28,62 @@
     group: "{{ ansible_user }}"
     mode: "0644"
 
-# Hash bcrypt du mot de passe AdGuard (adguard_password, préparé par le rôle secrets),
-# calculé avec htpasswd -B comme le recommande la documentation d'AdGuard Home.
+# ---------- Identifiants : idempotents ----------
+# Le hash bcrypt est salé : le recalculer à chaque passage changerait la
+# configuration à chaque fois. On garde donc « identifiant:hash » dans
+# admin.htpasswd (root, 0600) et on ne régénère que si le mot de passe du coffre
+# ne correspond plus (vérification htpasswd -v, mot de passe sur l'entrée standard).
 # htpasswd est dans les dépôts de base partout (python3-bcrypt ne l'est pas sur RHEL 9).
 - name: Installer htpasswd (pour hacher le mot de passe AdGuard)
   ansible.builtin.package:
     name: "{{ 'apache2-utils' if ansible_facts['os_family'] == 'Debian' else 'httpd-tools' }}"
     state: present
 
-# Le mot de passe passe par l'entrée standard (-i) : il n'apparaît pas dans la
-# ligne de commande (ps), et aucun caractère ne peut casser la commande.
-# Sortie « identifiant:hash » : on garde ce qui suit le premier ':'.
-- name: Générer le hash bcrypt du mot de passe AdGuard
+- name: Vérifier les identifiants AdGuard déjà enregistrés
   ansible.builtin.command:
-    argv: [htpasswd, -n, -i, -B, -C, "10", "{{ adguard_user }}"]
-    stdin: "{{ adguard_password }}"
+    argv: [htpasswd, -v, -i, "{{ lab_dacs_dir }}/adguard/admin.htpasswd", "{{ secrets_adguard_user }}"]
+    stdin: "{{ secrets_adguard_password }}"
     stdin_add_newline: false
-  register: adguard_hash
+  register: adguard_verif
   changed_when: false
+  failed_when: false
   no_log: true
 
+- name: Enregistrer de nouveaux identifiants AdGuard
+  when: adguard_verif.rc != 0
+  no_log: true
+  block:
+    # Sortie « identifiant:hash » ; le mot de passe n'apparaît pas dans ps
+    - name: Générer le hash bcrypt du mot de passe AdGuard
+      ansible.builtin.command:
+        argv: [htpasswd, -n, -i, -B, -C, "10", "{{ secrets_adguard_user }}"]
+        stdin: "{{ secrets_adguard_password }}"
+        stdin_add_newline: false
+      register: adguard_hash
+      changed_when: true
+
+    - name: Conserver l'identifiant et le hash
+      ansible.builtin.copy:
+        content: "{{ adguard_hash.stdout | trim }}\n"
+        dest: "{{ lab_dacs_dir }}/adguard/admin.htpasswd"
+        owner: root
+        group: root
+        mode: "0600"
+
+- name: Lire le hash enregistré
+  ansible.builtin.slurp:
+    src: "{{ lab_dacs_dir }}/adguard/admin.htpasswd"
+  register: adguard_htpasswd
+  no_log: true
+
+- name: Configuration AdGuard déjà présente ?
+  ansible.builtin.stat:
+    path: "{{ lab_dacs_dir }}/adguard/conf/AdGuardHome.yaml"
+  register: adguard_conf_avant
+
+# AdGuard réécrit lui-même ce fichier (réglages faits dans l'interface, mises à
+# jour des listes) : on ne l'écrase que s'il manque ou si les identifiants ont
+# changé. Pour réappliquer le modèle complet : supprimer le fichier et relancer.
 - name: Déployer la configuration AdGuard préremplie (depuis Vault)
   ansible.builtin.template:
     src: AdGuardHome.yaml.j2
@@ -55,12 +91,57 @@
     owner: root
     group: root
     mode: "0600"
+    force: "{{ adguard_verif.rc != 0 }}"
   vars:
-    adguard_password_hash: "{{ adguard_hash.stdout | trim | regex_replace('^[^:]*:', '') }}"
-  become: true
+    adguard_password_hash: "{{ (adguard_htpasswd.content | b64decode | trim).split(':', 1)[1] }}"
+  no_log: true
+  notify: Redémarrer AdGuard
+
+# ---------- Port 53 : libérer le résolveur local de systemd ----------
+# Ubuntu et Fedora font écouter systemd-resolved sur 127.0.0.53:53, ce qui
+# empêche Docker de publier le port 53 d'AdGuard. Solution recommandée par
+# AdGuard : couper ce « stub listener » ; le système utilise alors directement
+# les DNS connus de systemd-resolved (/run/systemd/resolve/resolv.conf).
+- name: Relever l'état des services
+  ansible.builtin.service_facts:
+
+- name: Libérer le port 53 occupé par systemd-resolved
+  when: ansible_facts['services']['systemd-resolved.service']['state'] | default('') == 'running'
+  block:
+    - name: Dossier de configuration de systemd-resolved
+      ansible.builtin.file:
+        path: /etc/systemd/resolved.conf.d
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Désactiver le stub DNS de systemd-resolved
+      ansible.builtin.copy:
+        dest: /etc/systemd/resolved.conf.d/lab-dacs-adguard.conf
+        content: |
+          # Géré par Ansible (lab-dacs) : AdGuard Home écoute sur le port 53
+          [Resolve]
+          DNSStubListener=no
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Redémarrer systemd-resolved
+
+    - name: Utiliser les DNS de systemd-resolved sans passer par le stub
+      ansible.builtin.file:
+        src: /run/systemd/resolve/resolv.conf
+        dest: /etc/resolv.conf
+        state: link
+        force: true
+
+# Maintenant : le port 53 doit être libre avant le démarrage d'AdGuard, et un
+# changement d'identifiants s'applique par redémarrage (AdGuard ne relit sa
+# configuration qu'au démarrage)
+- name: Appliquer les redémarrages en attente
+  ansible.builtin.meta: flush_handlers
 
 - name: Démarrer AdGuard avec Docker Compose
   community.docker.docker_compose_v2:
     project_src: "{{ lab_dacs_dir }}/adguard"
     state: present
-  become: true

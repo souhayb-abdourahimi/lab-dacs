@@ -1,0 +1,47 @@
+---
+# Tests d'intégration : site.yml déployé dans un conteneur systemd par
+# distribution, second passage idempotent (0 changed), puis vérifications
+# (Grafana, DNS AdGuard, CrowdSec, sshd).
+name: molecule
+
+"on":
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  molecule:
+    name: molecule (${{ matrix.distro }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: debian12
+            image: geerlingguy/docker-debian12-ansible:latest
+          - distro: debian13
+            image: geerlingguy/docker-debian13-ansible:latest
+          - distro: ubuntu2404
+            image: geerlingguy/docker-ubuntu2404-ansible:latest
+          - distro: rocky9
+            image: geerlingguy/docker-rockylinux9-ansible:latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Installer les outils
+        run: python -m pip install -r requirements-dev.txt
+      - name: molecule test
+        working-directory: ansible
+        env:
+          MOLECULE_DISTRO: ${{ matrix.distro }}
+          MOLECULE_IMAGE: ${{ matrix.image }}
+          PY_COLORS: "1"
+          ANSIBLE_FORCE_COLOR: "1"
+        run: molecule test

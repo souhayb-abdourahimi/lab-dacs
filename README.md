@@ -1,5 +1,8 @@
 # lab-dacs — Serveur Debian auto-hébergé, supervisé et défendu
 
+[![lint](https://github.com/souhayb-abdourahimi/lab-dacs/actions/workflows/lint.yml/badge.svg)](https://github.com/souhayb-abdourahimi/lab-dacs/actions/workflows/lint.yml)
+[![molecule](https://github.com/souhayb-abdourahimi/lab-dacs/actions/workflows/molecule.yml/badge.svg)](https://github.com/souhayb-abdourahimi/lab-dacs/actions/workflows/molecule.yml)
+
 Laboratoire personnel de sécurité et d'administration système, monté dans le cadre de ma préparation au BUT Informatique parcours DACS (Déploiement d'Applications Communicantes et Sécurisées).
 
 L'objectif : partir d'une VM Debian nue et la transformer en un serveur **durci, supervisé et capable de se défendre seul**, avec des alertes en temps réel sur mon téléphone. En complément, un module protège le **poste de travail** lui-même contre un accès physique non autorisé. Tout le serveur se redéploie **en une commande** grâce à Ansible, et il est **directement utilisable** à la fin du déploiement.
@@ -80,12 +83,14 @@ lab-dacs/
 ├── README.md                  ← ce fichier
 ├── install.sh                 ← déploiement du serveur, en une commande
 ├── install-pc.sh              ← installation de la détection d'accès sur le PC
+├── Makefile                   ← make lint / test / deploy / pc
 ├── lib/commun.sh              ← fonctions partagées (Ansible, paquets, YAML)
 ├── docs/                      ← documentation détaillée (une page par sujet)
 ├── ansible/                   ← déploiement automatisé
 │   ├── site.yml               ← playbook du serveur
 │   ├── pc.yml                 ← playbook du poste de travail
 │   ├── requirements.yml       ← collections Ansible nécessaires
+│   ├── molecule/              ← tests d'intégration (Molecule + Docker)
 │   ├── roles/                 ← secrets, selinux, docker, supervision, adguard,
 │   │                             alertes, parefeu, crowdsec, ssh,
 │   │                             detection_pc
@@ -146,6 +151,26 @@ Il faut **ansible-core ≥ 2.16**. Si la distribution fournit une version plus a
 
 Distributions : Fedora, Debian, Ubuntu (prises en charge d'origine), Arch Linux 🟢 (`pacman`), openSUSE Tumbleweed/Leap 🟢 (`zypper`). Les systèmes immuables (Fedora Silverblue/Kinoite, openSUSE MicroOS/Aeon) sont refusés.
 
+### Tests automatiques (CI)
+
+À chaque push, GitHub Actions lance :
+
+- **lint** : shellcheck, yamllint, ansible-lint (profil *production*) et ruff (lint et format du Python) ;
+- **molecule** : `site.yml` déployé dans un conteneur systemd sur **Debian 12, Debian 13, Ubuntu 24.04 et Rocky 9**. Un second passage doit afficher **0 changed** (idempotence). Viennent ensuite des vérifications fonctionnelles : Grafana répond sur `127.0.0.1:3000`, AdGuard répond au DNS sur le port 53, CrowdSec et son bouncer sont actifs, la connexion root et les mots de passe sont refusés par sshd, les timers d'alerte tournent.
+
+En conteneur, le pare-feu n'est pas appliqué et sshd n'est pas redémarré (variable `lab_test_conteneur`). La configuration SSH est tout de même validée (`sshd -t`) et vérifiée (`sshd -T`).
+
+En local (Docker requis) :
+
+```bash
+make deps                 # outils de développement (requirements-dev.txt)
+make lint                 # analyse statique
+make test                 # Molecule sur Debian 12
+make test DISTRO=rocky9   # ... ou debian13, ubuntu2404
+make deploy               # redéploie le serveur après un premier ./install.sh
+make pc                   # détection d'accès sur ce poste
+```
+
 ### Historique des tests
 
 Le déploiement a été validé **de zéro sur une VM Debian 13 vierge**, depuis deux machines de contrôle : **Fedora** et **Ubuntu**. Le test couvre l'installation complète, le filtrage DNS, la supervision, le pare-feu et les trois types d'alertes. Ce test sur machine vierge a révélé une dizaine de défauts invisibles sur la machine de développement ; ils sont décrits dans la [partie 2 du journal de dépannage](docs/08-depannage.md).
@@ -158,8 +183,7 @@ Pistes d'évolution, par ordre de priorité :
 
 1. **Rôle `web`** : automatiser Nginx et PostgreSQL.
 2. **Centralisation des journaux hors de la VM** — résister à l'effacement des traces par un attaquant root.
-3. **Tests automatisés (CI GitHub Actions)** — valider le déploiement à chaque modification.
-4. **Honeypot SSH** et **fichiers leurres** (honeytokens) branchés sur les alertes.
+3. **Honeypot SSH** et **fichiers leurres** (honeytokens) branchés sur les alertes.
 
 ---
 

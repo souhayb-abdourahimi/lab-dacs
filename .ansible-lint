@@ -1,0 +1,10 @@
+---
+# Configuration ansible-lint (lancé depuis la racine du dépôt : make lint, CI)
+profile: production
+exclude_paths:
+  - .cache/
+  - .github/
+  - docker/
+  - supervision/
+  - adguard/
+  - configs/

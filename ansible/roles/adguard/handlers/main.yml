@@ -1,0 +1,12 @@
+---
+- name: Redémarrer systemd-resolved
+  ansible.builtin.systemd:
+    name: systemd-resolved
+    state: restarted
+
+# Seulement si AdGuard tournait déjà (au premier déploiement, il démarre ensuite)
+- name: Redémarrer AdGuard
+  community.docker.docker_compose_v2:
+    project_src: "{{ lab_dacs_dir }}/adguard"
+    state: restarted
+  when: adguard_conf_avant.stat.exists

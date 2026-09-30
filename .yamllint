@@ -1,0 +1,23 @@
+---
+# Configuration yamllint du dépôt (compatible avec ansible-lint)
+extends: default
+
+ignore: |
+  .git/
+  .venv/
+  .cache/
+
+rules:
+  line-length:
+    max: 160
+  truthy:
+    allowed-values: ["true", "false"]
+    check-keys: false          # « on: » des workflows GitHub
+  comments:
+    min-spaces-from-content: 1
+  comments-indentation: false
+  braces:
+    max-spaces-inside: 1
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true

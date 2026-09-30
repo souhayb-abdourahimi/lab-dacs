@@ -4,3 +4,6 @@
   ansible.builtin.systemd:
     name: "{{ ssh_service }}"
     state: restarted
+  # Tests Molecule (lab_test_conteneur) : sshd ne tourne pas dans le conteneur ;
+  # la configuration est tout de même validée (sshd -t) et vérifiée (sshd -T).
+  when: not (lab_test_conteneur | default(false) | bool)

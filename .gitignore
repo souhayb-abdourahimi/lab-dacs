@@ -16,3 +16,6 @@ rapport-*.txt
 # Systeme
 .DS_Store
 __pycache__/
+
+# Outils de développement (make lint/test)
+.cache/

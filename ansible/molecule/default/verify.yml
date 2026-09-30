@@ -1,0 +1,90 @@
+---
+# Vérifications fonctionnelles après déploiement
+- name: Vérifier le lab déployé
+  hosts: serveurs
+  gather_facts: false
+  become: true
+  tasks:
+    - name: Grafana répond sur 127.0.0.1:3000
+      ansible.builtin.uri:
+        url: http://127.0.0.1:3000/api/health
+        return_content: true
+      register: verif_grafana
+      until: verif_grafana.status == 200
+      retries: 30
+      delay: 5
+
+    - name: Grafana est en bonne santé
+      ansible.builtin.assert:
+        that: verif_grafana.json.database == 'ok'
+        fail_msg: "Grafana répond mais sa base est en erreur : {{ verif_grafana.json }}"
+
+    # Requête DNS brute (type A, example.com) en UDP sur 127.0.0.1:53 : pas besoin
+    # de dig. On exige une réponse (bit QR) portant le même identifiant.
+    - name: AdGuard répond au DNS sur le port 53
+      ansible.builtin.command:
+        argv:
+          - python3
+          - -c
+          - |
+            import socket, struct, sys
+            requete = struct.pack(">HHHHHH", 0x1ab5, 0x0100, 1, 0, 0, 0)
+            requete += b"".join(bytes([len(p)]) + p.encode() for p in "example.com".split(".")) + b"\0"
+            requete += struct.pack(">HH", 1, 1)
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.settimeout(5)
+            s.sendto(requete, ("127.0.0.1", 53))
+            reponse = s.recv(512)
+            ident, drapeaux = struct.unpack(">HH", reponse[:4])
+            assert ident == 0x1ab5 and drapeaux & 0x8000, "reponse DNS invalide"
+            print("rcode=%d" % (drapeaux & 0xF))
+      register: verif_dns
+      until: verif_dns.rc == 0
+      retries: 20
+      delay: 5
+      changed_when: false
+
+    # Sans « state », le module systemd ne change rien et renvoie l'état de l'unité
+    - name: Lire l'état de CrowdSec et de son bouncer
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+      loop:
+        - crowdsec
+        - crowdsec-firewall-bouncer
+      register: verif_crowdsec
+
+    - name: CrowdSec et son bouncer sont actifs
+      ansible.builtin.assert:
+        that: item.status.ActiveState == 'active'
+        fail_msg: "{{ item.item }} : {{ item.status.ActiveState }} ({{ item.status.SubState }})"
+      loop: "{{ verif_crowdsec.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Lire la configuration effective de sshd
+      ansible.builtin.command: /usr/sbin/sshd -T
+      register: verif_sshd
+      changed_when: false
+
+    - name: Connexion root et mots de passe interdits en SSH
+      ansible.builtin.assert:
+        that:
+          - "'permitrootlogin no' in verif_sshd.stdout_lines"
+          - "'passwordauthentication no' in verif_sshd.stdout_lines"
+          - "'kbdinteractiveauthentication no' in verif_sshd.stdout_lines"
+
+    - name: Lire l'état des timers d'alerte
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+      loop:
+        - alerte-crowdsec.timer
+        - alerte-adguard.timer
+      register: verif_timers
+
+    - name: Les timers d'alerte sont actifs
+      ansible.builtin.assert:
+        that: item.status.ActiveState == 'active'
+        fail_msg: "{{ item.item }} : {{ item.status.ActiveState }}"
+      loop: "{{ verif_timers.results }}"
+      loop_control:
+        label: "{{ item.item }}"

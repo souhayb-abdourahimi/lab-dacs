@@ -1,0 +1,45 @@
+---
+# Analyse statique : shell, YAML, Ansible (profil production), Python
+name: lint
+
+"on":
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: shellcheck (.sh, lib/, commandes de detection-pc)
+        run: |
+          shellcheck --version
+          git ls-files -z '*.sh' 'detection-pc/commandes/*' | xargs -0 shellcheck -S style
+
+  python-yaml-ansible:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Installer les outils
+        run: |
+          python -m pip install -r requirements-dev.txt
+          ansible-galaxy collection install -r ansible/requirements.yml
+      - name: ruff (lint + format)
+        run: |
+          ruff check .
+          ruff format --check .
+      - name: yamllint
+        run: yamllint --strict .
+      - name: ansible-lint (profil production)
+        # ansible.cfg attend un .vault_pass : un faux suffit (aucun coffre en CI)
+        run: |
+          printf 'ci' > "$RUNNER_TEMP/vault_pass"
+          ANSIBLE_VAULT_PASSWORD_FILE="$RUNNER_TEMP/vault_pass" ansible-lint

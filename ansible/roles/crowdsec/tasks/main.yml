@@ -73,8 +73,86 @@
     enabled: true
     state: started
 
+# Paquets Debian/Ubuntu : quand l'API locale n'est pas prête à l'installation
+# du bouncer, le paquet crée /var/lib/crowdsec/pending-registration et le service
+# du bouncer refuse de démarrer tant que ce fichier existe (ConditionPathExists) :
+# sans rien faire, le bouncer ne démarre jamais. On l'inscrit donc nous-mêmes :
+# clé d'API créée par cscli, écrite dans sa configuration, marqueur supprimé.
+- name: Repérer une inscription de bouncer en attente
+  ansible.builtin.stat:
+    path: /var/lib/crowdsec/pending-registration
+  register: crowdsec_inscription
+
+- name: Inscrire le bouncer auprès de l'API locale
+  when: crowdsec_inscription.stat.exists
+  block:
+    # Une inscription partielle antérieure bloquerait « bouncers add »
+    - name: Supprimer une éventuelle inscription incomplète
+      ansible.builtin.command: cscli bouncers delete crowdsec-firewall-bouncer
+      register: crowdsec_suppression
+      changed_when: crowdsec_suppression.rc == 0
+      failed_when: false
+
+    - name: Créer la clé d'API du bouncer
+      ansible.builtin.command: cscli bouncers add crowdsec-firewall-bouncer -o raw
+      register: crowdsec_cle_bouncer
+      changed_when: true
+      no_log: true
+
+    # Le fichier .yaml.local (s'il existe) l'emporte sur le .yaml : clé écrite dans les deux
+    - name: Repérer une surcharge locale de la configuration du bouncer
+      ansible.builtin.stat:
+        path: /etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml.local
+      register: crowdsec_bouncer_local
+
+    - name: Écrire la clé dans la configuration du bouncer
+      ansible.builtin.lineinfile:
+        path: "{{ item }}"
+        regexp: '^api_key:'
+        line: "api_key: {{ crowdsec_cle_bouncer.stdout_lines | last | trim }}"
+      loop: >-
+        {{ ['/etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml']
+           + (['/etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml.local'] if crowdsec_bouncer_local.stat.exists else []) }}
+      no_log: true
+
+    - name: Retirer le marqueur d'inscription en attente
+      ansible.builtin.file:
+        path: /var/lib/crowdsec/pending-registration
+        state: absent
+
 - name: Activer et démarrer le bouncer
   ansible.builtin.systemd:
     name: crowdsec-firewall-bouncer
     enabled: true
     state: started
+
+# Un bouncer qui plante juste après son démarrage (clé d'API absente, pare-feu
+# inutilisable...) ne bloque plus rien, en silence : on vérifie qu'il tourne
+# toujours quelques secondes plus tard, et on affiche son journal sinon.
+- name: Vérifier que le bouncer reste actif
+  ansible.builtin.systemd:
+    name: crowdsec-firewall-bouncer
+  register: crowdsec_bouncer_etat
+  until: crowdsec_bouncer_etat.status.SubState == 'running'
+  retries: 5
+  delay: 3
+  failed_when: false
+
+# Le bouncer écrit surtout dans son propre fichier de log, pas dans journald
+- name: Lire le journal du bouncer
+  ansible.builtin.shell: |
+    set -o pipefail
+    journalctl -u crowdsec-firewall-bouncer -n 20 --no-pager
+    tail -n 30 /var/log/crowdsec-firewall-bouncer.log 2>/dev/null || true
+    cscli bouncers list 2>&1 || true
+    ls -l /etc/crowdsec/bouncers/ 2>&1 || true
+  args:
+    executable: /bin/bash
+  register: crowdsec_bouncer_journal
+  changed_when: false
+  when: crowdsec_bouncer_etat.status.SubState != 'running'
+
+- name: Le bouncer doit tourner
+  ansible.builtin.fail:
+    msg: "{{ ['crowdsec-firewall-bouncer ne tourne pas (' ~ crowdsec_bouncer_etat.status.SubState ~ ') :'] + crowdsec_bouncer_journal.stdout_lines }}"
+  when: crowdsec_bouncer_etat.status.SubState != 'running'

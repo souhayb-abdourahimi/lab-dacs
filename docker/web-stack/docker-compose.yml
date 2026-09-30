@@ -1,3 +1,4 @@
+---
 # Stack de demonstration : serveur web + base de donnees
 #
 # Usage :
@@ -28,8 +29,8 @@ services:
     container_name: lab-db
     restart: unless-stopped
     environment:
-      POSTGRES_DB:       ${POSTGRES_DB}
-      POSTGRES_USER:     ${POSTGRES_USER}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - donnees-db:/var/lib/postgresql/data
