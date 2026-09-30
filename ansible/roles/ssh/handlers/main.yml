@@ -1,5 +1,6 @@
 ---
+# ssh_service : « ssh » (Debian/Ubuntu) ou « sshd » (Fedora/RHEL), défini dans site.yml
 - name: Redémarrer SSH
   ansible.builtin.systemd:
-    name: ssh
+    name: "{{ ssh_service }}"
     state: restarted

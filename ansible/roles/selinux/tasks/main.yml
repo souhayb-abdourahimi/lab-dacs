@@ -1,0 +1,36 @@
+---
+# SELinux (Fedora, Rocky, Alma : actif par défaut). Rien n'est fait s'il est
+# désactivé ou absent (Debian, Ubuntu). On NE le désactive jamais : on donne
+# aux fichiers le bon contexte.
+#
+# Les stacks Docker montent des fichiers de {{ lab_dacs_dir }} dans les conteneurs
+# (configuration Prometheus/Grafana, données AdGuard). Quand le démon Docker
+# applique SELinux (moby-engine de Fedora), un conteneur ne peut lire que des
+# fichiers de type container_file_t. On déclare donc ce type comme contexte par
+# défaut du dossier : les fichiers qu'Ansible y dépose le reçoivent d'office.
+- name: Installer les outils SELinux (semanage, restorecon)
+  ansible.builtin.package:
+    name: policycoreutils-python-utils
+    state: present
+  when: ansible_facts['selinux']['status'] | default('disabled') == 'enabled'
+
+- name: Contexte SELinux des fichiers montés dans les conteneurs
+  community.general.sefcontext:
+    target: "{{ lab_dacs_dir }}(/.*)?"
+    setype: container_file_t
+    state: present
+  register: selinux_fcontext
+  when: ansible_facts['selinux']['status'] | default('disabled') == 'enabled'
+
+# Déploiements existants : réétiqueter les fichiers déjà en place
+- name: Appliquer le contexte aux fichiers existants
+  ansible.builtin.command: restorecon -R "{{ lab_dacs_dir }}"
+  args:
+    removes: "{{ lab_dacs_dir }}"
+  when: selinux_fcontext is changed
+
+- name: État de SELinux
+  ansible.builtin.debug:
+    msg: >-
+      SELinux {{ ansible_facts['selinux']['status'] | default('absent') }}
+      {{ ('(mode ' ~ ansible_facts['selinux']['mode'] ~ ')') if ansible_facts['selinux']['mode'] is defined else '' }}

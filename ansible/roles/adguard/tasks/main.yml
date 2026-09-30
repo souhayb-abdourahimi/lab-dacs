@@ -28,21 +28,20 @@
     group: "{{ ansible_user }}"
     mode: "0644"
 
-# Génère le hash bcrypt du mot de passe AdGuard (adguard_password, préparé par le rôle secrets)
-- name: Installer python3-bcrypt (pour hacher le mot de passe AdGuard)
-  ansible.builtin.apt:
-    name: python3-bcrypt
+# Hash bcrypt du mot de passe AdGuard (adguard_password, préparé par le rôle secrets),
+# calculé avec htpasswd -B comme le recommande la documentation d'AdGuard Home.
+# htpasswd est dans les dépôts de base partout (python3-bcrypt ne l'est pas sur RHEL 9).
+- name: Installer htpasswd (pour hacher le mot de passe AdGuard)
+  ansible.builtin.package:
+    name: "{{ 'apache2-utils' if ansible_facts['os_family'] == 'Debian' else 'httpd-tools' }}"
     state: present
-    update_cache: true
 
-# Le mot de passe passe par l'entrée standard : il n'apparaît ni dans le code
-# Python ni dans la ligne de commande (ps), et aucun caractère ne peut casser la commande.
+# Le mot de passe passe par l'entrée standard (-i) : il n'apparaît pas dans la
+# ligne de commande (ps), et aucun caractère ne peut casser la commande.
+# Sortie « identifiant:hash » : on garde ce qui suit le premier ':'.
 - name: Générer le hash bcrypt du mot de passe AdGuard
   ansible.builtin.command:
-    argv:
-      - python3
-      - -c
-      - "import sys, bcrypt; print(bcrypt.hashpw(sys.stdin.buffer.read(), bcrypt.gensalt()).decode())"
+    argv: [htpasswd, -n, -i, -B, -C, "10", "{{ adguard_user }}"]
     stdin: "{{ adguard_password }}"
     stdin_add_newline: false
   register: adguard_hash
@@ -57,7 +56,7 @@
     group: root
     mode: "0600"
   vars:
-    adguard_password_hash: "{{ adguard_hash.stdout }}"
+    adguard_password_hash: "{{ adguard_hash.stdout | trim | regex_replace('^[^:]*:', '') }}"
   become: true
 
 - name: Démarrer AdGuard avec Docker Compose
