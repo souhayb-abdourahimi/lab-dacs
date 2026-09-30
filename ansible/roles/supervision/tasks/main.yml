@@ -3,7 +3,7 @@
 - name: Copier les fichiers de la supervision
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/../supervision/"
-    dest: /home/{{ ansible_user }}/lab-dacs/supervision/
+    dest: "{{ lab_dacs_dir }}/supervision/"
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     mode: "0644"
@@ -12,13 +12,13 @@
 - name: Générer le fichier .env avec le mot de passe Grafana (depuis Vault)
   ansible.builtin.template:
     src: env.j2
-    dest: /home/{{ ansible_user }}/lab-dacs/supervision/.env
+    dest: "{{ lab_dacs_dir }}/supervision/.env"
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     mode: "0600"
 
 - name: Démarrer la stack avec Docker Compose
   community.docker.docker_compose_v2:
-    project_src: /home/{{ ansible_user }}/lab-dacs/supervision
+    project_src: "{{ lab_dacs_dir }}/supervision"
     state: present
   become: true

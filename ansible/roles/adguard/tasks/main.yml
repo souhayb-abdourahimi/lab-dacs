@@ -2,7 +2,7 @@
 # Déploie le filtre DNS AdGuard Home, préconfiguré (mot de passe + listes)
 - name: Créer les dossiers AdGuard
   ansible.builtin.file:
-    path: "/home/{{ ansible_user }}/lab-dacs/adguard/{{ item }}"
+    path: "{{ lab_dacs_dir }}/adguard/{{ item }}"
     state: directory
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
@@ -15,7 +15,7 @@
 - name: Copier le docker-compose d'AdGuard
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/../adguard/docker-compose.yml"
-    dest: "/home/{{ ansible_user }}/lab-dacs/adguard/docker-compose.yml"
+    dest: "{{ lab_dacs_dir }}/adguard/docker-compose.yml"
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     mode: "0644"
@@ -44,7 +44,7 @@
 - name: Déployer la configuration AdGuard préremplie (depuis Vault)
   ansible.builtin.template:
     src: AdGuardHome.yaml.j2
-    dest: "/home/{{ ansible_user }}/lab-dacs/adguard/conf/AdGuardHome.yaml"
+    dest: "{{ lab_dacs_dir }}/adguard/conf/AdGuardHome.yaml"
     owner: root
     group: root
     mode: "0600"
@@ -54,6 +54,6 @@
 
 - name: Démarrer AdGuard avec Docker Compose
   community.docker.docker_compose_v2:
-    project_src: "/home/{{ ansible_user }}/lab-dacs/adguard"
+    project_src: "{{ lab_dacs_dir }}/adguard"
     state: present
   become: true

@@ -22,7 +22,10 @@ readonly CIBLE="${SUDO_USER:-}"
 [[ -n "$CIBLE" ]] || die "SUDO_USER vide : impossible de verifier les cles."
 
 # Garde-fou : refuser de couper les mots de passe sans cle installee
-CLES="/home/${CIBLE}/.ssh/authorized_keys"
+# (vrai dossier personnel lu dans la base des comptes : il n'est pas forcément sous /home)
+MAISON_CIBLE="$(getent passwd "$CIBLE" | cut -d: -f6)"
+[[ -n "$MAISON_CIBLE" ]] || die "Dossier personnel de '${CIBLE}' introuvable."
+CLES="${MAISON_CIBLE}/.ssh/authorized_keys"
 if [[ ! -s "$CLES" ]]; then
     die "Aucune cle publique dans ${CLES}. Lancez d'abord ssh-copy-id depuis l'hote."
 fi
