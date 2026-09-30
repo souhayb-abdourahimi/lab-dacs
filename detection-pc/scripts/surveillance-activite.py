@@ -15,12 +15,12 @@ CONF = Path.home() / ".config/lab-dacs/detection.conf"
 CAPTURE = Path.home() / ".local/bin/capture-intrus.sh"
 
 
-def topic():
+def lire_conf(cle):
     try:
         with open(CONF) as f:
             for ligne in f:
-                if ligne.startswith("NTFY_TOPIC="):
-                    return ligne.strip().split("=", 1)[1].strip('"')
+                if ligne.startswith(cle + "="):
+                    return ligne.strip().split("=", 1)[1].strip("\"'")
     except OSError:
         return None
     return None
@@ -30,9 +30,10 @@ def reagir():
     if CAPTURE.exists():  # la capture webcam est optionnelle
         subprocess.run([str(CAPTURE)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     subprocess.run(["loginctl", "lock-session"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    t = topic()
+    t = lire_conf("NTFY_TOPIC")
     if not t:
         return
+    serveur = (lire_conf("NTFY_SERVEUR") or "https://ntfy.sh").rstrip("/")
     quand = time.strftime("%d/%m/%Y %H:%M:%S")
     subprocess.run(
         [
@@ -48,7 +49,7 @@ def reagir():
             "Priority: urgent",
             "-d",
             f"Activite detectee en mode absent. Ecran verrouille automatiquement.\nQuand : {quand}",
-            f"https://ntfy.sh/{t}",
+            f"{serveur}/{t}",
         ],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,

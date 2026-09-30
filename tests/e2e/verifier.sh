@@ -10,7 +10,8 @@
 #   apres-relance après le second déploiement (sshd ne doit PAS redémarrer)
 #
 # Variables : E2E_DIR, E2E_ADRESSE, E2E_UTILISATEUR, E2E_SUDO_PW, E2E_GRAFANA_PW,
-#             E2E_NTFY_TOPIC, E2E_NTFY_SERVEUR (défaut https://ntfy.sh)
+#             E2E_NTFY_TOPIC, E2E_NTFY_SERVEUR (serveur ntfy vu de la VM, défaut
+#             https://ntfy.sh), E2E_NTFY_LECTURE (le même vu du runner, défaut : idem)
 # Chaque contrôle affiche ✔ ou ✘ ; le script échoue si un seul contrôle échoue.
 # Les fonctions de contrôle sont appelées indirectement (via controle/reessayer)
 # shellcheck disable=SC2317,SC2329
@@ -20,7 +21,8 @@ MODE="${1:?usage : verifier.sh avant|apres|apres-relance}"
 DIR="${E2E_DIR:-/tmp/lab-e2e}"
 ADRESSE="${E2E_ADRESSE:-127.0.0.2}"
 UTILISATEUR="${E2E_UTILISATEUR:-labadmin}"
-NTFY="${E2E_NTFY_SERVEUR:-https://ntfy.sh}"
+NTFY_VM="${E2E_NTFY_SERVEUR:-https://ntfy.sh}"
+NTFY="${E2E_NTFY_LECTURE:-$NTFY_VM}"
 ECHECS=0
 
 ok()      { echo "✔ $1"; }
@@ -159,7 +161,9 @@ dns_ok() {
 controle "AdGuard répond au DNS sur le port 53 (example.com résolu)" reessayer 20 3 dns_ok
 
 # ---------------------------------------------------------------------------
-section "Alertes ntfy (sujet de test aléatoire)"
+section "Alertes ntfy (sujet de test aléatoire, serveur $NTFY_VM)"
+conf_serveur="$(vm_sudo "grep '^NTFY_SERVEUR=' /etc/lab-alertes.conf")"
+controle "serveur ntfy du coffre dans /etc/lab-alertes.conf ($conf_serveur)" egal "$conf_serveur" "NTFY_SERVEUR=$NTFY_VM"
 DEBUT=$(date +%s)
 sleep 1
 vm true   # connexion SSH -> alerte « Connexion SSH »

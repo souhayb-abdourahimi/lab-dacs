@@ -13,6 +13,6 @@ cscli alerts list -o json 2>/dev/null \
       curl -s -m 5 -H "Title: IP bannie sur $(uname -n)" -H "Tags: shield" -H "Priority: high" \
         -d "IP : $ip
 Raison : $scenario
-Quand : $(date '+%d/%m/%Y %H:%M')" "https://ntfy.sh/$NTFY_TOPIC" >/dev/null 2>&1
+Quand : $(date '+%d/%m/%Y %H:%M')" "${NTFY_SERVEUR:-https://ntfy.sh}/$NTFY_TOPIC" >/dev/null 2>&1
       echo "$id" > "$ETAT"
     done

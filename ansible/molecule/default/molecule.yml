@@ -45,6 +45,8 @@ provisioner:
         # Mot de passe AdGuard volontairement « piégé » : ' : # " et espaces.
         grafana_admin_password: "grafana-ci-mdp"
         ntfy_topic: "lab-dacs-ci-molecule"
+        # Serveur auto-hébergé fictif, « / » final compris (doit être retiré)
+        ntfy_serveur: "https://ntfy.example.org/"
         adguard_auth: "admin:mot de passe: #piégé' \"ci"
 verifier:
   name: ansible

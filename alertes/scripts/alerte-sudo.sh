@@ -11,5 +11,5 @@ date +%s > "$DERNIER"
 curl -s -m 5 -H "Title: sudo utilisé sur $(uname -n)" -H "Tags: warning" -H "Priority: high" \
   -d "Utilisateur : $PAM_RUSER devient $PAM_USER
 Quand : $(date '+%d/%m/%Y %H:%M')" \
-  "https://ntfy.sh/$NTFY_TOPIC" >/dev/null 2>&1 &
+  "${NTFY_SERVEUR:-https://ntfy.sh}/$NTFY_TOPIC" >/dev/null 2>&1 &
 exit 0

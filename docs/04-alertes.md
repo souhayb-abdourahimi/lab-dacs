@@ -23,7 +23,23 @@ Le transport est **ntfy** : un service de notification gratuit. Le serveur envoi
 
 ## Gestion des secrets
 
-Le sujet ntfy et les identifiants AdGuard vivent dans `/etc/lab-alertes.conf` (permissions `600`, jamais versionné). Les scripts lisent ce fichier, ils ne contiennent aucun secret en dur. Le dépôt fournit un modèle `lab-alertes.conf.example` avec des valeurs fictives.
+Le serveur ntfy, le sujet ntfy et les identifiants AdGuard vivent dans `/etc/lab-alertes.conf` (permissions `600`, jamais versionné). Les scripts lisent ce fichier, ils ne contiennent aucun secret en dur. Le dépôt fournit un modèle `lab-alertes.conf.example` avec des valeurs fictives.
+
+## Serveur ntfy : public ou auto-hébergé
+
+Par défaut, les alertes passent par le service public `https://ntfy.sh`. `install.sh` demande le serveur à la création du coffre (**Entrée** garde `ntfy.sh`). Vous pouvez aussi donner l'adresse de votre propre serveur ntfy, par exemple `https://ntfy.mondomaine.fr`. L'adresse est stockée dans le coffre (`ntfy_serveur`), puis utilisée par toutes les alertes du serveur et par le module PC.
+
+Pour changer de serveur plus tard :
+
+1. `ansible-vault edit ansible/group_vars/all.yml` ;
+2. modifier ou ajouter la ligne `ntfy_serveur: https://...` ;
+3. relancer `./install.sh`.
+
+Dans l'application ntfy, abonnez-vous au sujet **sur ce même serveur**.
+
+Un coffre créé avant cette option n'a pas de `ntfy_serveur`. Il continue simplement d'utiliser `ntfy.sh`.
+
+Limite actuelle : l'envoi est anonyme, sans jeton d'accès. Sur un serveur auto-hébergé avec contrôle d'accès, autorisez l'écriture anonyme sur le sujet choisi.
 
 ## Problèmes rencontrés
 

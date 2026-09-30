@@ -8,5 +8,5 @@ curl -s -m 5 -H "Title: Connexion SSH sur $(uname -n)" -H "Tags: key" -H "Priori
   -d "Utilisateur : $PAM_USER
 Depuis : $PAM_RHOST
 Quand : $(date '+%d/%m/%Y %H:%M')" \
-  "https://ntfy.sh/$NTFY_TOPIC" >/dev/null 2>&1 &
+  "${NTFY_SERVEUR:-https://ntfy.sh}/$NTFY_TOPIC" >/dev/null 2>&1 &
 exit 0

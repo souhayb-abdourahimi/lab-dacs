@@ -6,7 +6,8 @@
 # Réponses lues dans l'environnement (jamais en argument : elles apparaîtraient
 # dans « ps » et dans les journaux) :
 #   E2E_ADRESSE, E2E_UTILISATEUR, E2E_EMPREINTE (empreinte attendue de la clé d'hôte),
-#   E2E_SUDO_PW, E2E_VAULT_PW, E2E_GRAFANA_PW, E2E_ADGUARD_PW, E2E_NTFY_TOPIC
+#   E2E_SUDO_PW, E2E_VAULT_PW, E2E_GRAFANA_PW, E2E_ADGUARD_PW, E2E_NTFY_TOPIC,
+#   E2E_NTFY_SERVEUR (facultatif : vide = Entrée, donc le défaut https://ntfy.sh)
 # Code de sortie : celui d'install.sh (1 si une question inattendue bloque).
 #
 # Les mots de passe sont saisis sur des invites sans écho (read -s, getpass) :
@@ -31,6 +32,8 @@ set vault_pw    [env_ou_erreur E2E_VAULT_PW]
 set grafana_pw  [env_ou_erreur E2E_GRAFANA_PW]
 set adguard_pw  [env_ou_erreur E2E_ADGUARD_PW]
 set ntfy_topic  [env_ou_erreur E2E_NTFY_TOPIC]
+set ntfy_serveur ""
+if {[info exists ::env(E2E_NTFY_SERVEUR)]} { set ntfy_serveur $::env(E2E_NTFY_SERVEUR) }
 
 spawn ./install.sh
 
@@ -51,6 +54,7 @@ expect {
   }
   -re {Mot de passe de ce coffre : } { send "$vault_pw\r"; exp_continue }
   -re {Mot de passe admin Grafana : } { send "$grafana_pw\r"; exp_continue }
+  -re {Serveur ntfy \[[^]]*\] : } { send "$ntfy_serveur\r"; exp_continue }
   -re {Sujet ntfy[^:]*: } { send "$ntfy_topic\r"; exp_continue }
   -re {Identifiant admin AdGuard[^:]*: } { send "admin\r"; exp_continue }
   -re {Mot de passe admin AdGuard : } { send "$adguard_pw\r"; exp_continue }

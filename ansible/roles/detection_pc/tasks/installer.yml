@@ -38,6 +38,18 @@
     that: ntfy_topic is defined and ntfy_topic | length > 0
     fail_msg: "Sujet ntfy absent : lancez le déploiement via install-pc.sh."
 
+# Serveur ntfy : celui du coffre (ntfy_serveur), sinon le service public
+# (coffres créés avant l'option). Le « / » final éventuel est retiré.
+- name: Retenir le serveur ntfy
+  ansible.builtin.set_fact:
+    detection_pc_ntfy_serveur: "{{ ntfy_serveur | default('https://ntfy.sh', true) | regex_replace('/+$', '') }}"
+
+- name: Vérifier l'adresse du serveur ntfy
+  ansible.builtin.assert:
+    that: detection_pc_ntfy_serveur is match('^https?://[^/\s]+(/\S*)?$')
+    fail_msg: "ntfy_serveur doit être une adresse http(s)://, par exemple https://ntfy.sh (valeur : {{ detection_pc_ntfy_serveur }})."
+    quiet: true
+
 # Verrouillage/déverrouillage détectés par le signal D-Bus ActiveChanged :
 # org.gnome.ScreenSaver (GNOME) ou org.freedesktop.ScreenSaver (KDE Plasma).
 - name: Avertir si le bureau n'est ni GNOME ni KDE Plasma

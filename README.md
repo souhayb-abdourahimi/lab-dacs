@@ -165,9 +165,9 @@ En conteneur, le pare-feu n'est pas appliqué et sshd n'est pas redémarré (var
   - identité de la VM contrôlée par son empreinte SSH ;
   - clé SSH acceptée, mot de passe et root refusés, alors qu'ils étaient acceptés avant le déploiement ;
   - ufw actif, seuls 22/tcp et 53 ouverts, et un service de test réellement injoignable de l'extérieur ;
-  - bouncer CrowdSec inscrit, et blocage effectif d'une IP dans nftables ;
+  - bouncer CrowdSec inscrit, et blocage effectif d'une IP dans le pare-feu (ipset) ;
   - Grafana via un tunnel SSH, et AdGuard qui répond au DNS ;
-  - alertes ntfy reçues pour une connexion SSH et un `sudo`, sur un sujet aléatoire propre au test.
+  - alertes ntfy reçues pour une connexion SSH et un `sudo`, sur un sujet aléatoire propre au test : via `ntfy.sh` (Ubuntu) et via un serveur ntfy **auto-hébergé** lancé sur le runner (Debian).
 
   Le déploiement est ensuite relancé : il doit afficher **0 changed**, et tout est revérifié. Les mots de passe de test sont tirés au hasard à chaque exécution (avec `' : # " $`) et masqués dans les journaux. Détails : [`tests/e2e/`](tests/e2e/).
 

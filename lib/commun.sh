@@ -175,3 +175,20 @@ installer_collections() {
   done
   return 1
 }
+
+# Demande l'adresse du serveur ntfy (Entrée = service public https://ntfy.sh)
+# et l'écrit dans la variable NTFY_SERVEUR, sans « / » final.
+demander_serveur_ntfy() {
+  local reponse
+  while true; do
+    read -r -p "Serveur ntfy [https://ntfy.sh, ou le vôtre ex: https://ntfy.mondomaine.fr] : " reponse
+    reponse="${reponse:-https://ntfy.sh}"
+    while [[ "$reponse" == */ ]]; do reponse="${reponse%/}"; done
+    if [[ "$reponse" =~ ^https?://[^/[:space:]]+(/[^[:space:]]*)?$ ]]; then
+      # shellcheck disable=SC2034  # lue par le script appelant
+      NTFY_SERVEUR="$reponse"
+      return 0
+    fi
+    attention "Adresse invalide : elle doit commencer par https:// (ou http://)."
+  done
+}

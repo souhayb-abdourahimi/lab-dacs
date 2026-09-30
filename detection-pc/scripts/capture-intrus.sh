@@ -16,7 +16,7 @@ PHOTO="/tmp/intrus-$HORODATAGE.jpg"
 
 # Notif d'activation camera (transparence)
 curl -s -m 5 -H "Title: Camera activee" -H "Tags: camera" \
-  -d "Prise de photo en cours suite a une intrusion" "https://ntfy.sh/$NTFY_TOPIC" >/dev/null 2>&1
+  -d "Prise de photo en cours suite a une intrusion" "${NTFY_SERVEUR:-https://ntfy.sh}/$NTFY_TOPIC" >/dev/null 2>&1
 
 # Capture avec temps de chauffe ; timeout pour liberer la camera quoi qu'il arrive
 timeout 10 ffmpeg -y -f v4l2 -i "$WEBCAM" -frames:v 30 -vf "select=eq(n\,29)" -update 1 "$PHOTO" 2>/dev/null
@@ -26,7 +26,7 @@ timeout 10 ffmpeg -y -f v4l2 -i "$WEBCAM" -frames:v 30 -vf "select=eq(n\,29)" -u
 curl -s -m 15 -T "$PHOTO" \
   -H "Title: Photo de l'intrus" -H "Tags: rotating_light" -H "Priority: urgent" \
   -H "Filename: intrus-$HORODATAGE.jpg" \
-  "https://ntfy.sh/$NTFY_TOPIC" >/dev/null 2>&1
+  "${NTFY_SERVEUR:-https://ntfy.sh}/$NTFY_TOPIC" >/dev/null 2>&1
 
 # Copie de preuve sur le serveur (hors de portee d'un intrus sur le PC), si configure.
 # BatchMode : jamais de demande de mot de passe qui bloquerait le script.
