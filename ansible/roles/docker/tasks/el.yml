@@ -1,0 +1,39 @@
+---
+# RHEL 9 et ses dérivés ne fournissent pas Docker (seulement Podman) : on utilise
+# le dépôt officiel de Docker. Rocky et Alma utilisent le dépôt « centos ».
+- name: Vérifier l'absence de podman-docker (conflit avec la commande docker)
+  ansible.builtin.command: rpm -q podman-docker
+  register: docker_podman_docker
+  changed_when: false
+  failed_when: false
+
+- name: Refuser l'installation si podman-docker est présent
+  ansible.builtin.assert:
+    that: docker_podman_docker.rc != 0
+    fail_msg: >-
+      Le paquet podman-docker fournit déjà une commande « docker » (émulation Podman)
+      incompatible avec Docker CE. Retirez-le (sudo dnf remove podman-docker) puis relancez.
+    quiet: true
+
+- name: Importer la clé de signature du dépôt Docker
+  ansible.builtin.rpm_key:
+    key: "https://download.docker.com/linux/{{ docker_depot_el }}/gpg"
+    state: present
+
+- name: Déclarer le dépôt Docker CE
+  ansible.builtin.yum_repository:
+    name: docker-ce-stable
+    description: Docker CE Stable - $basearch
+    baseurl: "https://download.docker.com/linux/{{ docker_depot_el }}/$releasever/$basearch/stable"
+    gpgcheck: true
+    gpgkey: "https://download.docker.com/linux/{{ docker_depot_el }}/gpg"
+    enabled: true
+
+- name: Installer Docker CE et le plugin Compose v2
+  ansible.builtin.package:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-compose-plugin
+    state: present
