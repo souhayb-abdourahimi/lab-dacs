@@ -20,6 +20,14 @@
     group: "{{ ansible_user }}"
     mode: "0644"
 
+- name: Générer le fichier .env d'AdGuard (nom d'hôte du serveur)
+  ansible.builtin.copy:
+    content: "NODE_HOSTNAME={{ ansible_facts['hostname'] }}\n"
+    dest: "{{ lab_dacs_dir }}/adguard/.env"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0644"
+
 # Génère le hash bcrypt du mot de passe AdGuard (adguard_password, préparé par le rôle secrets)
 - name: Installer python3-bcrypt (pour hacher le mot de passe AdGuard)
   ansible.builtin.apt:

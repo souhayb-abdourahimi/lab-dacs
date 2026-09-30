@@ -2,7 +2,8 @@ services:
   adguard:
     image: adguard/adguardhome:v0.107.53
     container_name: adguard
-    hostname: debian-dacs-lab
+    # Nom du serveur hôte, fourni par Ansible dans .env (NODE_HOSTNAME)
+    hostname: ${NODE_HOSTNAME:-adguard}
     ports:
       - "53:53/tcp"
       - "53:53/udp"
