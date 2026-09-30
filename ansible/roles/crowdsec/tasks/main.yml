@@ -129,8 +129,14 @@
   delay: 3
   failed_when: false
 
+# Le bouncer écrit surtout dans son propre fichier de log, pas dans journald
 - name: Lire le journal du bouncer
-  ansible.builtin.command: journalctl -u crowdsec-firewall-bouncer -n 40 --no-pager
+  ansible.builtin.shell: |
+    set -o pipefail
+    journalctl -u crowdsec-firewall-bouncer -n 20 --no-pager
+    tail -n 30 /var/log/crowdsec-firewall-bouncer.log 2>/dev/null || true
+  args:
+    executable: /bin/bash
   register: crowdsec_bouncer_journal
   changed_when: false
   when: crowdsec_bouncer_etat.status.SubState != 'running'

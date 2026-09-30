@@ -5,9 +5,9 @@ crowdsec_depot_cle: https://packagecloud.io/crowdsec/crowdsec/gpgkey
 crowdsec_depot_apt: https://packagecloud.io/crowdsec/crowdsec/any
 crowdsec_depot_rpm: https://packagecloud.io/crowdsec/crowdsec/rpm_any/rpm_any/$basearch
 # Clés des dépôts rpm (métadonnées + paquets), d'après la documentation CrowdSec
+# (la clé EDE2C695EC9A5A5C qu'elle cite n'est plus publiée : 404)
 crowdsec_depot_cles_rpm:
   - https://packagecloud.io/crowdsec/crowdsec/gpgkey
-  - https://packagecloud.io/crowdsec/crowdsec/gpgkey/crowdsec-crowdsec-EDE2C695EC9A5A5C.pub.gpg
   - https://packagecloud.io/crowdsec/crowdsec/gpgkey/crowdsec-crowdsec-C822EDD6B39954A1.pub.gpg
   - https://packagecloud.io/crowdsec/crowdsec/gpgkey/crowdsec-crowdsec-FED78314A2468CCF.pub.gpg
 
