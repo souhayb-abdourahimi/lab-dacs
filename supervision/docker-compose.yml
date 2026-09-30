@@ -1,5 +1,6 @@
 ---
-# Supervision du lab : Prometheus (collecte) + node-exporter (métriques du serveur) + Grafana (affichage)
+# Supervision du lab : Prometheus (collecte) + node-exporter (métriques du serveur)
+# + Loki (journaux) + Alloy (envoi du journal systemd à Loki) + Grafana (affichage)
 # Versions fixées pour un déploiement reproductible : vérifie les plus récentes sur Docker Hub.
 
 services:
@@ -32,6 +33,41 @@ services:
     networks: [supervision]
     restart: unless-stopped
 
+  loki:
+    image: grafana/loki:3.7.8
+    container_name: loki
+    command:
+      - -config.file=/etc/loki/loki.yml
+    volumes:
+      - ./loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki-data:/loki
+    networks: [supervision]
+    restart: unless-stopped
+    # Aucun port publié : Loki n'est joignable que depuis le réseau interne.
+
+  alloy:
+    image: grafana/alloy:v1.20.1
+    container_name: alloy
+    command:
+      - run
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    # Lit le journal systemd de l'hôte (lecture seule) : ses fichiers sont
+    # réservés à root et au groupe systemd-journal, dont le numéro varie d'une
+    # distribution à l'autre, d'où root. Même remarque SELinux que node-exporter.
+    user: "0:0"
+    security_opt:
+      - label=disable
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/log/journal:/var/log/journal:ro
+      - /etc/machine-id:/etc/machine-id:ro
+      - alloy-data:/var/lib/alloy/data
+    depends_on: [loki]
+    networks: [supervision]
+    restart: unless-stopped
+    # Aucun port publié (l'interface d'Alloy reste interne).
+
   grafana:
     image: grafana/grafana:11.1.0
     container_name: grafana
@@ -48,7 +84,7 @@ services:
       - grafana-data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana_admin_password:/run/secrets/grafana_admin_password:ro
-    depends_on: [prometheus]
+    depends_on: [prometheus, loki]
     networks: [supervision]
     restart: unless-stopped
 
@@ -58,3 +94,5 @@ networks:
 volumes:
   prometheus-data: {}
   grafana-data: {}
+  loki-data: {}
+  alloy-data: {}

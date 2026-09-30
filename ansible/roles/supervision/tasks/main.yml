@@ -1,5 +1,22 @@
 ---
-# Déploie la stack de supervision (Prometheus + Grafana + node-exporter)
+# Déploie la stack de supervision (Prometheus + node-exporter + Loki + Alloy + Grafana)
+
+# Alloy lit le journal systemd dans /var/log/journal : le journal doit y être
+# conservé (c'est le cas d'origine sur Debian/Ubuntu ; sur Fedora/RHEL, il
+# reste en mémoire dans /run/log/journal tant que ce dossier n'existe pas).
+- name: Créer le dossier du journal persistant
+  ansible.builtin.file:
+    path: /var/log/journal
+    state: directory
+    owner: root
+    group: systemd-journal
+    mode: "2755"
+  notify: Basculer le journal sur le disque
+
+# Avant le démarrage d'Alloy, qui doit trouver le journal à sa place
+- name: Appliquer la bascule du journal
+  ansible.builtin.meta: flush_handlers
+
 - name: Copier les fichiers de la supervision
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/../supervision/"

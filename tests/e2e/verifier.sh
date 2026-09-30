@@ -177,6 +177,38 @@ controle "alerte « sudo utilisé » reçue sur ntfy" reessayer 12 5 alerte_recu
 echo "  titres reçus depuis le début du contrôle :"
 titres | sed 's/^/    /'
 
+# ---------------------------------------------------------------------------
+section "Journaux (Loki) et tableau de bord « Sécurité »"
+# Un domaine publicitaire, bloqué par les listes d'AdGuard
+DOMAINE_BLOQUE=doubleclick.net
+dig +time=3 +tries=1 @"$ADRESSE" "$DOMAINE_BLOQUE" A >/dev/null
+ssh "${SSH_OPTS[@]}" -M -S "$SOCK" -fN -o ExitOnForwardFailure=yes \
+    -L 13000:127.0.0.1:3000 "$UTILISATEUR@$ADRESSE"
+grafana_api() { curl -fs -m 20 -u "admin:$E2E_GRAFANA_PW" "$@"; }
+# Évalue une requête LogQL (métrique) comme le fait un panneau : par Grafana
+somme_loki() {
+  local corps
+  corps="$(jq -n --arg e "$1" '{from: "now-1h", to: "now", queries: [{refId: "A",
+            datasource: {uid: "loki", type: "loki"}, expr: $e, queryType: "instant",
+            intervalMs: 60000, maxDataPoints: 100}]}')"
+  grafana_api -H 'Content-Type: application/json' -d "$corps" http://127.0.0.1:13000/api/ds/query \
+    | jq -r '[.results.A.frames[]?.data.values[1][]?] | add // 0'
+}
+positif() { local n; n="$(somme_loki "$1")"; [[ "$n" =~ ^[0-9.]+$ ]] && awk -v n="$n" 'BEGIN { exit !(n > 0) }'; }
+tableau="$(grafana_api http://127.0.0.1:13000/api/dashboards/uid/securite)"
+controle "tableau de bord « Sécurité » provisionné" egal "$(jq -r '.dashboard.title' <<<"$tableau")" "Sécurité"
+controle "IP $IP_TEST bannie visible dans Loki" reessayer 24 5 \
+  positif "sum(count_over_time({job=\"journal\", identifiant=\"lab-securite\"} |= \"ip=$IP_TEST \" [1h]))"
+controle "domaine bloqué $DOMAINE_BLOQUE visible dans Loki" reessayer 24 5 \
+  positif "sum(count_over_time({job=\"journal\", identifiant=\"lab-dns\"} |= \"domaine=$DOMAINE_BLOQUE \" [1h]))"
+# Chaque compteur du tableau de bord, évalué par Grafana avec SA requête ($__range
+# compris) : tous non nuls
+# (les contrôles précédents ont créé connexions SSH, sudo, bannissement et blocage)
+while IFS=$'\t' read -r titre requete; do
+  controle "panneau « $titre » non nul" reessayer 12 5 positif "$requete"
+done < <(jq -r '.dashboard.panels[] | select(.type == "stat") | [.title, .targets[0].expr] | @tsv' <<<"$tableau")
+ssh -S "$SOCK" -O exit "$UTILISATEUR@$ADRESSE" 2>/dev/null
+
 echo
 if (( ECHECS == 0 )); then
   echo "Tous les contrôles ($MODE) sont passés."

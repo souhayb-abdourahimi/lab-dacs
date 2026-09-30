@@ -19,6 +19,31 @@
         that: verif_grafana.json.database == 'ok'
         fail_msg: "Grafana répond mais sa base est en erreur : {{ verif_grafana.json }}"
 
+    # Loki reçoit le journal (via Alloy) : Grafana doit pouvoir l'interroger
+    - name: Loki répond à Grafana et contient le journal du serveur
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:3000/api/datasources/proxy/uid/loki/loki/api/v1/query?query={{ 'sum(count_over_time({job=\"journal\"} [1h]))' | urlencode }}"
+        url_username: admin
+        url_password: "{{ grafana_admin_password }}"
+        force_basic_auth: true
+        return_content: true
+      register: verif_loki
+      until: >-
+        verif_loki.status == 200
+        and (verif_loki.json.data.result | length) > 0
+        and (verif_loki.json.data.result[0].value[1] | int) > 0
+      retries: 30
+      delay: 5
+
+    - name: Le tableau de bord Sécurité est provisionné
+      ansible.builtin.uri:
+        url: http://127.0.0.1:3000/api/dashboards/uid/securite
+        url_username: admin
+        url_password: "{{ grafana_admin_password }}"
+        force_basic_auth: true
+      register: verif_tableau
+      failed_when: verif_tableau.status != 200 or verif_tableau.json.dashboard.title != 'Sécurité'
+
     # Requête DNS brute (type A, example.com) en UDP sur 127.0.0.1:53 : pas besoin
     # de dig. On exige une réponse (bit QR) portant le même identifiant.
     - name: AdGuard répond au DNS sur le port 53
