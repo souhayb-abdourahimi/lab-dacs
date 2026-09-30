@@ -99,11 +99,20 @@
       changed_when: true
       no_log: true
 
+    # Le fichier .yaml.local (s'il existe) l'emporte sur le .yaml : clé écrite dans les deux
+    - name: Repérer une surcharge locale de la configuration du bouncer
+      ansible.builtin.stat:
+        path: /etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml.local
+      register: crowdsec_bouncer_local
+
     - name: Écrire la clé dans la configuration du bouncer
       ansible.builtin.lineinfile:
-        path: /etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml
+        path: "{{ item }}"
         regexp: '^api_key:'
-        line: "api_key: {{ crowdsec_cle_bouncer.stdout | trim }}"
+        line: "api_key: {{ crowdsec_cle_bouncer.stdout_lines | last | trim }}"
+      loop: >-
+        {{ ['/etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml']
+           + (['/etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml.local'] if crowdsec_bouncer_local.stat.exists else []) }}
       no_log: true
 
     - name: Retirer le marqueur d'inscription en attente
@@ -135,6 +144,8 @@
     set -o pipefail
     journalctl -u crowdsec-firewall-bouncer -n 20 --no-pager
     tail -n 30 /var/log/crowdsec-firewall-bouncer.log 2>/dev/null || true
+    cscli bouncers list 2>&1 || true
+    ls -l /etc/crowdsec/bouncers/ 2>&1 || true
   args:
     executable: /bin/bash
   register: crowdsec_bouncer_journal
