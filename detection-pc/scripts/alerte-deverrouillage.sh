@@ -11,7 +11,13 @@ ARME="$HOME/.local/state/mode-vigilance"
 mkdir -p "$(dirname "$ARME")"
 DERNIER=0
 
-dbus-monitor --session "type='signal',interface='org.gnome.ScreenSaver'" 2>/dev/null |
+# Signal ActiveChanged(boolean) emis au verrouillage (true) et au deverrouillage (false) :
+#   - GNOME      : interface org.gnome.ScreenSaver
+#   - KDE Plasma : interface org.freedesktop.ScreenSaver (emis sur deux chemins D-Bus,
+#                  d'ou des doublons : l'armement est idempotent, le deverrouillage filtre)
+dbus-monitor --session \
+  "type='signal',interface='org.gnome.ScreenSaver',member='ActiveChanged'" \
+  "type='signal',interface='org.freedesktop.ScreenSaver',member='ActiveChanged'" 2>/dev/null |
 while read -r ligne; do
   MAINTENANT=$(date +%s)
 
