@@ -116,6 +116,19 @@
         group: root
         mode: "0755"
 
+    # Sans le stub, systemd-resolved ne résout plus le nom de la machine : sudo
+    # afficherait « unable to resolve host » (et attendrait le DNS) à chaque appel.
+    # Convention Debian : le nom d'hôte sur 127.0.1.1 dans /etc/hosts.
+    - name: Garder le nom de la machine résolvable localement
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        regexp: '^127\.0\.1\.1\s'
+        line: "127.0.1.1 {{ ansible_facts['hostname'] }}"
+        insertafter: '^127\.0\.0\.1\s'
+        owner: root
+        group: root
+        mode: "0644"
+
     - name: Désactiver le stub DNS de systemd-resolved
       ansible.builtin.copy:
         dest: /etc/systemd/resolved.conf.d/lab-dacs-adguard.conf

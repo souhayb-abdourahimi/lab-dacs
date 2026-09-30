@@ -4,6 +4,7 @@
 #   make test                 test Molecule de site.yml (DISTRO=debian12 par défaut)
 #   make test DISTRO=rocky9   ... sur une autre distribution
 #   make test-all             ... sur toutes les distributions de la CI
+#   make e2e                  test de bout en bout sur une VRAIE VM (QEMU/KVM, E2E_DISTRO=debian13)
 #   make deploy               (re)déploie le serveur (inventaire + coffre créés par install.sh)
 #   make pc                   installe la détection d'accès sur CE poste
 #   make deps                 installe les outils de développement (requirements-dev.txt)
@@ -25,7 +26,7 @@ VAULT_PASS := $(if $(wildcard ansible/.vault_pass),$(CURDIR)/ansible/.vault_pass
 $(VAULT_FACTICE):
 	@mkdir -p $(@D) && printf 'factice' > $@
 
-.PHONY: help deps lint shellcheck yamllint ansible-lint ruff test test-all deploy install pc
+.PHONY: help deps lint shellcheck yamllint ansible-lint ruff test test-all e2e deploy install pc
 
 help: ## Affiche cette aide
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  make %-14s %s\n", $$1, $$2}'
@@ -56,6 +57,9 @@ test: $(VAULT_FACTICE) ## Test Molecule sur DISTRO (debian12, debian13, ubuntu24
 
 test-all: ## Test Molecule sur toutes les distributions
 	@for d in $(DISTROS); do $(MAKE) --no-print-directory test DISTRO=$$d || exit 1; done
+
+e2e: ## Test de bout en bout sur une vraie VM (QEMU/KVM, vrai install.sh)
+	tests/e2e/scenario.sh
 
 deploy: ## Déploie le serveur (après un premier ./install.sh)
 	@test -f ansible/inventory/hosts.yml || { echo "Pas d'inventaire : lancez d'abord ./install.sh"; exit 1; }

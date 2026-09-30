@@ -37,6 +37,15 @@ jobs:
           cache-dependency-path: requirements-dev.txt
       - name: Installer les outils
         run: python -m pip install -r requirements-dev.txt
+      # Collections installées d'avance (Molecule les trouve alors déjà là) :
+      # Galaxy renvoie parfois une réponse invalide passagère, d'où 3 essais
+      - name: Installer les collections Ansible
+        run: |
+          for essai in 1 2 3; do
+            ansible-galaxy collection install -r ansible/requirements.yml && break
+            [ "$essai" = 3 ] && exit 1
+            sleep $((essai * 10))
+          done
       - name: molecule test
         working-directory: ansible
         env:

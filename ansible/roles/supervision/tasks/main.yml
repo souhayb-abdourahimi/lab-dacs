@@ -9,13 +9,25 @@
     mode: "0644"
     directory_mode: "0755"
 
-- name: Générer le fichier .env avec le mot de passe Grafana (depuis Vault)
+- name: Générer le fichier .env (utilisateur Grafana, nom d'hôte)
   ansible.builtin.template:
     src: env.j2
     dest: "{{ lab_dacs_dir }}/supervision/.env"
     owner: "{{ ansible_user }}"
     group: "{{ ansible_user }}"
     mode: "0600"
+
+# Le mot de passe n'est PAS dans .env : Docker Compose y coupe la valeur à « # »
+# et interprète « $ ». Grafana le lit dans un fichier monté (GF_..._PASSWORD__FILE),
+# octet pour octet. Propriétaire 472 : l'utilisateur du conteneur Grafana.
+- name: Écrire le mot de passe admin Grafana (depuis Vault)
+  ansible.builtin.copy:
+    content: "{{ grafana_admin_password }}"
+    dest: "{{ lab_dacs_dir }}/supervision/grafana_admin_password"
+    owner: "472"
+    group: "0"
+    mode: "0400"
+  no_log: true
 
 - name: Démarrer la stack avec Docker Compose
   community.docker.docker_compose_v2:

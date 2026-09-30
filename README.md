@@ -2,6 +2,7 @@
 
 [![lint](https://github.com/souhayb-abdourahimi/lab-dacs/actions/workflows/lint.yml/badge.svg)](https://github.com/souhayb-abdourahimi/lab-dacs/actions/workflows/lint.yml)
 [![molecule](https://github.com/souhayb-abdourahimi/lab-dacs/actions/workflows/molecule.yml/badge.svg)](https://github.com/souhayb-abdourahimi/lab-dacs/actions/workflows/molecule.yml)
+[![e2e-vm](https://github.com/souhayb-abdourahimi/lab-dacs/actions/workflows/e2e-vm.yml/badge.svg)](https://github.com/souhayb-abdourahimi/lab-dacs/actions/workflows/e2e-vm.yml)
 
 Laboratoire personnel de sécurité et d'administration système, monté dans le cadre de ma préparation au BUT Informatique parcours DACS (Déploiement d'Applications Communicantes et Sécurisées).
 
@@ -160,6 +161,16 @@ Distributions : Fedora, Debian, Ubuntu (prises en charge d'origine), Arch Linux 
 
 En conteneur, le pare-feu n'est pas appliqué et sshd n'est pas redémarré (variable `lab_test_conteneur`). La configuration SSH est tout de même validée (`sshd -t`) et vérifiée (`sshd -T`).
 
+- **e2e-vm** : le vrai `./install.sh` sur de **vraies machines virtuelles** **Debian 13** et **Ubuntu 24.04** (image cloud officielle, QEMU/KVM sur le runner), **pare-feu et redémarrage de sshd compris**. Tout y est vérifié pour de vrai :
+  - identité de la VM contrôlée par son empreinte SSH ;
+  - clé SSH acceptée, mot de passe et root refusés, alors qu'ils étaient acceptés avant le déploiement ;
+  - ufw actif, seuls 22/tcp et 53 ouverts, et un service de test réellement injoignable de l'extérieur ;
+  - bouncer CrowdSec inscrit, et blocage effectif d'une IP dans nftables ;
+  - Grafana via un tunnel SSH, et AdGuard qui répond au DNS ;
+  - alertes ntfy reçues pour une connexion SSH et un `sudo`, sur un sujet aléatoire propre au test.
+
+  Le déploiement est ensuite relancé : il doit afficher **0 changed**, et tout est revérifié. Les mots de passe de test sont tirés au hasard à chaque exécution (avec `' : # " $`) et masqués dans les journaux. Détails : [`tests/e2e/`](tests/e2e/).
+
 En local (Docker requis) :
 
 ```bash
@@ -167,6 +178,7 @@ make deps                 # outils de développement (requirements-dev.txt)
 make lint                 # analyse statique
 make test                 # Molecule sur Debian 12
 make test DISTRO=rocky9   # ... ou debian13, ubuntu2404
+make e2e                  # vraie VM (KVM requis), E2E_DISTRO=debian13|ubuntu2404
 make deploy               # redéploie le serveur après un premier ./install.sh
 make pc                   # détection d'accès sur ce poste
 ```
