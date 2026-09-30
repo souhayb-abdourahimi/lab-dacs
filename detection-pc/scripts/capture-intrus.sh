@@ -4,6 +4,8 @@ DRAPEAU_PHOTO="$HOME/.local/state/photo-autorisee"
 [ -f "$DRAPEAU_PHOTO" ] || exit 0   # photo desactivee : on ne fait rien
 
 CONF="$HOME/.config/lab-dacs/detection.conf"
+# Fichier généré au déploiement, hors dépôt : shellcheck ne peut pas le lire.
+# shellcheck source=/dev/null
 [ -r "$CONF" ] && . "$CONF"
 [ -z "$NTFY_TOPIC" ] && exit 0
 [ "$WEBCAM_ACTIVE" = "oui" ] || exit 0   # webcam refusee a l'installation : jamais de photo

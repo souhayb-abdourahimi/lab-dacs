@@ -3,6 +3,8 @@
 DRAPEAU="$HOME/.local/state/photo-autorisee"
 mkdir -p "$(dirname "$DRAPEAU")"
 CONF="$HOME/.config/lab-dacs/detection.conf"
+# Fichier généré au déploiement, hors dépôt : shellcheck ne peut pas le lire.
+# shellcheck source=/dev/null
 [ -r "$CONF" ] && . "$CONF"
 case "$1" in
   on)

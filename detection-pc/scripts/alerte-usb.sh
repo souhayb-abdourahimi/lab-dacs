@@ -3,6 +3,8 @@
 # Lance par alerte-usb@.service (root) ; le nom de l'appareil arrive en argument,
 # car les variables udev ne sont pas transmises au service systemd.
 CONF="/etc/lab-dacs/detection.conf"
+# Fichier généré au déploiement, hors dépôt : shellcheck ne peut pas le lire.
+# shellcheck source=/dev/null
 [ -r "$CONF" ] && . "$CONF"
 [ -z "$NTFY_TOPIC" ] && exit 0
 APPAREIL="${1:-inconnu}"

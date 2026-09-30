@@ -10,7 +10,8 @@
 set -euo pipefail
 
 readonly CONF=/etc/ssh/sshd_config
-readonly SAUVEGARDE="${CONF}.bak-$(date +%Y%m%d-%H%M%S)"
+SAUVEGARDE="${CONF}.bak-$(date +%Y%m%d-%H%M%S)"
+readonly SAUVEGARDE
 
 log()  { printf '\033[1;34m[+]\033[0m %s\n' "$1"; }
 warn() { printf '\033[1;33m[!]\033[0m %s\n' "$1"; }

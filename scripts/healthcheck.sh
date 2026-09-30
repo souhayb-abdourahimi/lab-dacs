@@ -23,6 +23,7 @@ rapport() {
     titre "Systeme"
     ligne "Hote"        "$(hostname)"
     ligne "Noyau"       "$(uname -r)"
+    # shellcheck source=/dev/null
     ligne "Distribution" "$(. /etc/os-release && echo "$PRETTY_NAME")"
     ligne "Uptime"      "$(uptime -p 2>/dev/null || echo n/a)"
 

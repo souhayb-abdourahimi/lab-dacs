@@ -2,6 +2,8 @@
 # Verrouillage : arme la vigilance si elle etait en attente
 # Deverrouillage : alerte + desarme la vigilance
 CONF="$HOME/.config/lab-dacs/detection.conf"
+# Fichier généré au déploiement, hors dépôt : shellcheck ne peut pas le lire.
+# shellcheck source=/dev/null
 [ -r "$CONF" ] && . "$CONF"
 [ -z "$NTFY_TOPIC" ] && exit 0
 ATTENTE="$HOME/.local/state/vigilance-en-attente"

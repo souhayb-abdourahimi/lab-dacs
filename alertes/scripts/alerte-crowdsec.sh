@@ -1,5 +1,7 @@
 #!/bin/sh
 # Envoie une notification pour chaque nouvelle alerte CrowdSec
+# Fichier généré par Ansible (modèle : alertes/lab-alertes.conf.example).
+# shellcheck source=/dev/null
 . /etc/lab-alertes.conf
 ETAT=/var/lib/lab-alertes/dernier-id-crowdsec
 mkdir -p /var/lib/lab-alertes
