@@ -1,12 +1,13 @@
 ---
-# Installe CrowdSec (version Debian) et le bouncer pare-feu
-- name: Installer CrowdSec et le firewall-bouncer
-  ansible.builtin.apt:
-    name:
-      - crowdsec
-      - crowdsec-firewall-bouncer
-    state: present
-    update_cache: true
+# Installe CrowdSec et le bouncer pare-feu : paquets de la distribution quand
+# elle les fournit (Debian, Ubuntu 24.04), sinon dépôt officiel CrowdSec.
+- name: Installer CrowdSec (Debian, Ubuntu)
+  ansible.builtin.include_tasks: installer_debian.yml
+  when: ansible_facts['os_family'] == 'Debian'
+
+- name: Installer CrowdSec (Fedora, RHEL)
+  ansible.builtin.include_tasks: installer_redhat.yml
+  when: ansible_facts['os_family'] == 'RedHat'
 
 - name: Créer le dossier d'acquisition
   ansible.builtin.file:
@@ -25,16 +26,32 @@
     content: |
       source: journalctl
       journalctl_filter:
-        - "_SYSTEMD_UNIT=ssh.service"
+        - "_SYSTEMD_UNIT={{ ssh_service }}.service"
       labels:
         type: syslog
   notify: Redémarrer CrowdSec
 
-# Correctif Debian 13 : le processus SSH est renomme "sshd-session",
-# ce que le parser CrowdSec ne reconnait pas. On retablit le nom "sshd"
-# tot dans l'etape s01 pour que la detection d'attaque SSH fonctionne.
-# Conditionnel : ne s'applique que sur Debian 13 et superieur.
-- name: "Debian 13 : corriger la reconnaissance du parser SSH (sshd-session)"
+# Correctif OpenSSH >= 9.8 (Debian 13, Fedora 41+...) : le processus SSH est
+# renommé « sshd-session », ce que le parser CrowdSec ne reconnaît pas. On rétablit
+# le nom « sshd » tôt dans l'étape s01 pour que la détection d'attaque SSH marche.
+# Appliqué seulement si le binaire sshd-session existe (chemin Debian ou Red Hat).
+- name: Détecter sshd-session (OpenSSH >= 9.8)
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - /usr/lib/openssh/sshd-session
+    - /usr/libexec/openssh/sshd-session
+  register: crowdsec_sshd_session
+
+- name: Dossier des parsers locaux
+  ansible.builtin.file:
+    path: /etc/crowdsec/parsers/s01-parse
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: "OpenSSH >= 9.8 : corriger la reconnaissance du parser SSH (sshd-session)"
   ansible.builtin.copy:
     dest: /etc/crowdsec/parsers/s01-parse/aaa-sshd-session-fix.yaml
     owner: root
@@ -42,14 +59,12 @@
     mode: "0644"
     content: |
       filter: "evt.Parsed.program == 'sshd-session'"
-      name: debian13/sshd-session-rename
-      description: "Debian 13 renomme sshd en sshd-session ; on retablit le nom pour le parser SSH"
+      name: lab-dacs/sshd-session-rename
+      description: "OpenSSH >= 9.8 renomme sshd en sshd-session ; on retablit le nom pour le parser SSH"
       statics:
         - parsed: program
           value: sshd
-  when:
-    - ansible_distribution == "Debian"
-    - ansible_distribution_major_version | int >= 13
+  when: crowdsec_sshd_session.results | selectattr('stat.exists') | list | length > 0
   notify: Redémarrer CrowdSec
 
 - name: Activer et démarrer CrowdSec

@@ -1,0 +1,9 @@
+---
+# Dépôt officiel CrowdSec (packagecloud), utilisé quand la distribution ne
+# fournit pas CrowdSec et son bouncer (Fedora, RHEL et dérivés ; Ubuntu 22.04).
+crowdsec_depot_cle: https://packagecloud.io/crowdsec/crowdsec/gpgkey
+crowdsec_depot_apt: https://packagecloud.io/crowdsec/crowdsec/any
+crowdsec_depot_rpm: https://packagecloud.io/crowdsec/crowdsec/rpm_any/rpm_any/$basearch
+
+# Forcer le dépôt officiel même si la distribution fournit les paquets
+crowdsec_forcer_depot_officiel: false
