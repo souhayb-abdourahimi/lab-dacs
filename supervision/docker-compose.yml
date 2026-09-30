@@ -38,6 +38,8 @@ services:
     env_file: .env
     environment:
       - GF_USERS_ALLOW_SIGN_UP=false
+      # Mot de passe lu dans un fichier : aucun caractère n'est interprété
+      - GF_SECURITY_ADMIN_PASSWORD__FILE=/run/secrets/grafana_admin_password
     ports:
       # Lié à 127.0.0.1 : jamais exposé sur le réseau, accès par tunnel SSH uniquement.
       # (Docker contourne ufw pour les ports publiés, d'où ce choix.)
@@ -45,6 +47,7 @@ services:
     volumes:
       - grafana-data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana_admin_password:/run/secrets/grafana_admin_password:ro
     depends_on: [prometheus]
     networks: [supervision]
     restart: unless-stopped
