@@ -96,6 +96,18 @@
           - "'passwordauthentication no' in verif_sshd.stdout_lines"
           - "'kbdinteractiveauthentication no' in verif_sshd.stdout_lines"
 
+    - name: Lire la configuration des alertes
+      ansible.builtin.slurp:
+        src: /etc/lab-alertes.conf
+      register: verif_alertes_conf
+      no_log: true
+
+    - name: Le serveur ntfy configuré est utilisé (sans « / » final)
+      ansible.builtin.assert:
+        that: "'NTFY_SERVEUR=https://ntfy.example.org\n' in (verif_alertes_conf.content | b64decode)"
+        fail_msg: "NTFY_SERVEUR absent ou incorrect dans /etc/lab-alertes.conf"
+        quiet: true
+
     - name: Lire l'état des timers d'alerte
       ansible.builtin.systemd:
         name: "{{ item }}"

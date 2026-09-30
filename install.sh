@@ -99,6 +99,7 @@ if [[ -f group_vars/all.yml ]] && head -1 group_vars/all.yml | grep -q ANSIBLE_V
 else
   echo "On va créer votre coffre de secrets. Choisissez vos propres valeurs."
   read -r -s -p "Mot de passe admin Grafana : "        GRAFANA_PASS; echo
+  demander_serveur_ntfy
   read -r -p        "Sujet ntfy (ex: monlab-a1b2c3d4) : " NTFY_TOPIC
   read -r -p        "Identifiant admin AdGuard [admin] : " AG_USER
   AG_USER="${AG_USER:-admin}"
@@ -120,6 +121,7 @@ else
     umask 077
     {
       printf 'grafana_admin_password: %s\n' "$(yaml_quote "$GRAFANA_PASS")"
+      printf 'ntfy_serveur: %s\n'           "$(yaml_quote "$NTFY_SERVEUR")"
       printf 'ntfy_topic: %s\n'             "$(yaml_quote "$NTFY_TOPIC")"
       printf 'adguard_auth: %s\n'           "$(yaml_quote "${AG_USER}:${AG_PASS}")"
     } > group_vars/all.yml

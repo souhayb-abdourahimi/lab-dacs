@@ -11,4 +11,4 @@ APPAREIL="${1:-inconnu}"
 curl -s -m 5 -H "Title: Peripherique USB branche" -H "Tags: floppy_disk" -H "Priority: high" \
   -d "Un appareil USB vient d etre connecte au PC
 Appareil : ${APPAREIL//_/ }
-Quand : $(date '+%d/%m/%Y %H:%M:%S')" "https://ntfy.sh/$NTFY_TOPIC" >/dev/null 2>&1
+Quand : $(date '+%d/%m/%Y %H:%M:%S')" "${NTFY_SERVEUR:-https://ntfy.sh}/$NTFY_TOPIC" >/dev/null 2>&1

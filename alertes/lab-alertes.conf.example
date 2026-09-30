@@ -2,5 +2,7 @@
 # Ne JAMAIS versionner le vrai fichier : il contient des secrets.
 # sudo chmod 600 /etc/lab-alertes.conf
 
+# Serveur ntfy : le service public, ou votre propre serveur (sans / final)
+NTFY_SERVEUR=https://ntfy.sh
 NTFY_TOPIC=mettre-ici-un-sujet-secret-genere-avec-openssl-rand-hex-6
 ADGUARD_AUTH=identifiant:mot_de_passe_adguard

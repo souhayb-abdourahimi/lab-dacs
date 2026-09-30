@@ -3,6 +3,8 @@
 # Ne JAMAIS versionner all.yml en clair : seul all.yml.example (ce fichier) va sur Git.
 
 grafana_admin_password: choisir_un_mot_de_passe_grafana
+# Serveur ntfy : https://ntfy.sh (service public) ou votre propre serveur
+ntfy_serveur: https://ntfy.sh
 ntfy_topic: choisir-un-sujet-secret-ex-monlab-ab12cd34
 # identifiant:mot_de_passe — découpé sur le premier ':' (le mot de passe peut en contenir).
 # Mettez la valeur entre apostrophes ; une apostrophe interne se double ('').

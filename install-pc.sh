@@ -66,7 +66,7 @@ if ! $RETIRER; then
   echo "    sans information préalable des personnes (RGPD, CNIL). Dans le doute, refusez."
   echo "  - Même installée, la photo reste DÉSACTIVÉE : il faudra taper photo-on pour l'autoriser."
   echo "  - Une notification « Caméra activée » est envoyée à chaque photo : jamais de capture cachée."
-  echo "  - Les photos passent par le service ntfy.sh et restent sur votre serveur (dossier ~/preuves)."
+  echo "  - Les photos passent par votre serveur ntfy (ntfy.sh par défaut) et restent sur votre serveur (dossier ~/preuves)."
   echo "  - Vous pourrez changer d'avis plus tard en relançant ce script."
   echo
   read -r -p "Installer l'option webcam ? [o/N] " rep_cam
@@ -88,19 +88,23 @@ if $RETIRER; then
   [[ -f .vault_pass ]] || { printf '%s' "$(head -c 24 /dev/urandom | base64)" > .vault_pass; chmod 600 .vault_pass; }
   ok "Pas besoin du sujet ntfy pour retirer."
 elif [[ -f group_vars/all.yml ]] && head -1 group_vars/all.yml | grep -q ANSIBLE_VAULT; then
-  ok "Coffre du serveur trouvé : les alertes utiliseront le même sujet ntfy."
+  ok "Coffre du serveur trouvé : les alertes utiliseront le même serveur et le même sujet ntfy."
   read -r -s -p "Mot de passe du coffre : " VAULT_PASS; echo
   printf '%s' "$VAULT_PASS" > .vault_pass
   chmod 600 .vault_pass
   ansible-vault view group_vars/all.yml >/dev/null 2>&1 || { erreur "Mot de passe du coffre incorrect."; exit 1; }
 else
-  attention "Aucun coffre de serveur sur cette machine : saisissez votre sujet ntfy."
+  attention "Aucun coffre de serveur sur cette machine : saisissez votre serveur et votre sujet ntfy."
+  demander_serveur_ntfy
   read -r -p "Sujet ntfy : " NTFY_TOPIC
   [[ -n "$NTFY_TOPIC" ]] || { erreur "Sujet ntfy requis."; exit 1; }
   [[ -f .vault_pass ]] || { printf '%s' "$(head -c 24 /dev/urandom | base64)" > .vault_pass; chmod 600 .vault_pass; }
   TMPVARS=$(mktemp)
   chmod 600 "$TMPVARS"
-  printf 'ntfy_topic: %s\n' "$(yaml_quote "$NTFY_TOPIC")" > "$TMPVARS"
+  {
+    printf 'ntfy_serveur: %s\n' "$(yaml_quote "$NTFY_SERVEUR")"
+    printf 'ntfy_topic: %s\n' "$(yaml_quote "$NTFY_TOPIC")"
+  } > "$TMPVARS"
   trap 'rm -f "$TMPVARS"' EXIT
   EXTRA=(-e "@$TMPVARS")
 fi

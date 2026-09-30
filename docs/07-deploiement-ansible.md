@@ -118,6 +118,7 @@ Le script vous guide en 6 étapes :
 3. **Adresse du serveur** : l'IP et l'utilisateur de l'étape 1. Le script écrit lui-même l'inventaire, vous n'avez aucun fichier à modifier. Lors des lancements suivants, il vous propose la dernière IP utilisée : appuyez simplement sur Entrée.
 4. **Vos secrets** : vous choisissez **vos propres** identifiants :
    - le mot de passe admin **Grafana** ;
+   - votre **serveur ntfy** (Entrée = `https://ntfy.sh`, ou l'adresse de votre propre serveur) ;
    - votre **sujet ntfy** (étape 2) ;
    - l'identifiant et le mot de passe admin **AdGuard** ;
    - un **mot de passe de coffre**, qui chiffre tous ces secrets (Ansible Vault). Retenez-le : il sera redemandé à chaque redéploiement.
@@ -227,7 +228,7 @@ La liste complète des problèmes réels rencontrés et résolus est dans le [jo
 **Le script plante au milieu de l'étape des secrets.** Supprimez les fichiers partiels avant de relancer : `rm -f ansible/group_vars/all.yml ansible/.vault_pass`.
 
 **Aucune alerte n'arrive.** Vérifiez que vous êtes abonné au **bon sujet** dans ntfy (celui saisi dans `install.sh`). Puis testez l'envoi direct depuis le serveur :
-`ssh -t utilisateur@ip "sudo sh -c '. /etc/lab-alertes.conf && curl -d Test https://ntfy.sh/\$NTFY_TOPIC'"`.
+`ssh -t utilisateur@ip "sudo sh -c '. /etc/lab-alertes.conf && curl -d Test \$NTFY_SERVEUR/\$NTFY_TOPIC'"`.
 
 ---
 

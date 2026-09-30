@@ -16,7 +16,7 @@ curl -s -m 5 -u "$ADGUARD_AUTH" "http://127.0.0.1:8090/control/querylog?limit=50
       grep -qF "$cle" "$ETAT" && continue
       curl -s -m 5 -H "Title: Site dangereux bloque" -H "Tags: warning" -H "Priority: high" \
         -d "Domaine : $domaine
-Quand : $(date '+%d/%m/%Y %H:%M')" "https://ntfy.sh/$NTFY_TOPIC" >/dev/null 2>&1
+Quand : $(date '+%d/%m/%Y %H:%M')" "${NTFY_SERVEUR:-https://ntfy.sh}/$NTFY_TOPIC" >/dev/null 2>&1
       echo "$cle" >> "$ETAT"
     done
 tail -n 200 "$ETAT" > "$ETAT.tmp" && mv "$ETAT.tmp" "$ETAT"
