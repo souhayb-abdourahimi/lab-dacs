@@ -1,6 +1,6 @@
 ---
-# Prépare le conteneur comme une VM fraîchement installée : serveur SSH (avec
-# ses clés d'hôte, nécessaires à sshd -t / sshd -T) et sudo.
+# Prépare le conteneur comme une VM fraîchement installée : serveur SSH démarré
+# (avec ses clés d'hôte, nécessaires à sshd -t / sshd -T) et sudo.
 - name: Préparer le conteneur de test
   hosts: all
   gather_facts: true
@@ -16,6 +16,13 @@
     - name: Générer les clés d'hôte SSH
       ansible.builtin.command: ssh-keygen -A
       changed_when: false
+
+    # Comme sur un vrai serveur, sshd tourne (il crée /run/sshd, requis par sshd -t)
+    - name: Démarrer le serveur SSH
+      ansible.builtin.systemd:
+        name: "{{ 'ssh' if ansible_facts['os_family'] == 'Debian' else 'sshd' }}"
+        state: started
+        enabled: true
 
     # Sur une vraie machine, systemd monte / en « shared » ; dans un conteneur
     # il est privé, et node-exporter (montage /:/host:rslave) refuserait de démarrer.
