@@ -16,3 +16,9 @@
     - name: Générer les clés d'hôte SSH
       ansible.builtin.command: ssh-keygen -A
       changed_when: false
+
+    # Sur une vraie machine, systemd monte / en « shared » ; dans un conteneur
+    # il est privé, et node-exporter (montage /:/host:rslave) refuserait de démarrer.
+    - name: Rendre / partagé, comme sur un hôte systemd
+      ansible.builtin.command: mount --make-rshared /
+      changed_when: false
