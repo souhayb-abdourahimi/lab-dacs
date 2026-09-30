@@ -1,0 +1,77 @@
+#!/usr/bin/expect -f
+#
+# tests/e2e/install.exp — Joue le rôle de l'utilisateur devant ./install.sh :
+# répond à chaque question, exactement comme au clavier (pseudo-terminal).
+#
+# Réponses lues dans l'environnement (jamais en argument : elles apparaîtraient
+# dans « ps » et dans les journaux) :
+#   E2E_ADRESSE, E2E_UTILISATEUR, E2E_EMPREINTE (empreinte attendue de la clé d'hôte),
+#   E2E_SUDO_PW, E2E_VAULT_PW, E2E_GRAFANA_PW, E2E_ADGUARD_PW, E2E_NTFY_TOPIC
+# Code de sortie : celui d'install.sh (1 si une question inattendue bloque).
+#
+# Les mots de passe sont saisis sur des invites sans écho (read -s, getpass) :
+# ils n'apparaissent pas dans la sortie.
+
+set timeout 180
+log_user 1
+
+proc env_ou_erreur {nom} {
+  if {![info exists ::env($nom)] || $::env($nom) eq ""} {
+    puts stderr "\n[install.exp] variable $nom manquante"
+    exit 2
+  }
+  return $::env($nom)
+}
+
+set adresse     [env_ou_erreur E2E_ADRESSE]
+set utilisateur [env_ou_erreur E2E_UTILISATEUR]
+set empreinte   [env_ou_erreur E2E_EMPREINTE]
+set sudo_pw     [env_ou_erreur E2E_SUDO_PW]
+set vault_pw    [env_ou_erreur E2E_VAULT_PW]
+set grafana_pw  [env_ou_erreur E2E_GRAFANA_PW]
+set adguard_pw  [env_ou_erreur E2E_ADGUARD_PW]
+set ntfy_topic  [env_ou_erreur E2E_NTFY_TOPIC]
+
+spawn ./install.sh
+
+expect {
+  -re {Continuer \? \[o/N\]} { send "o\r"; exp_continue }
+  -re {Adresse IP du serveur} { send "$adresse\r"; exp_continue }
+  -re {Nom d'utilisateur SSH} { send "$utilisateur\r"; exp_continue }
+  -re {L'empreinte correspond-elle \? \[o/N\]} {
+    # Même contrôle qu'un humain : l'empreinte affichée doit être celle attendue
+    if {[string first $empreinte $expect_out(buffer)] >= 0} {
+      puts "\n\[install.exp\] empreinte vérifiée : $empreinte"
+      send "o\r"
+    } else {
+      puts "\n\[install.exp\] EMPREINTE INATTENDUE (attendue : $empreinte)"
+      send "n\r"
+    }
+    exp_continue
+  }
+  -re {Mot de passe de ce coffre : } { send "$vault_pw\r"; exp_continue }
+  -re {Mot de passe admin Grafana : } { send "$grafana_pw\r"; exp_continue }
+  -re {Sujet ntfy[^:]*: } { send "$ntfy_topic\r"; exp_continue }
+  -re {Identifiant admin AdGuard[^:]*: } { send "admin\r"; exp_continue }
+  -re {Mot de passe admin AdGuard : } { send "$adguard_pw\r"; exp_continue }
+  -re {Confirmez le mot de passe du coffre : } { send "$vault_pw\r"; exp_continue }
+  -re {Mot de passe du coffre : } { send "$vault_pw\r"; exp_continue }
+  -re {BECOME password: } {
+    # Le déploiement complet peut être long : plus de limite par étape
+    send "$sudo_pw\r"
+    set timeout -1
+    exp_continue
+  }
+  -re {\[o/N\]} {
+    puts "\n\[install.exp\] question inattendue, arrêt"
+    exit 1
+  }
+  timeout {
+    puts "\n\[install.exp\] délai dépassé en attendant une question"
+    exit 1
+  }
+  eof
+}
+
+lassign [wait] pid spawnid os_erreur code
+exit $code
