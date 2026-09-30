@@ -132,7 +132,7 @@ Ce que le déploiement fait automatiquement, sans intervention :
 - configure **AdGuard** avec votre identifiant, votre mot de passe (haché en bcrypt) et quatre listes de blocage (anti-publicité, anti-phishing, anti-malware) ;
 - configure **Grafana** avec votre mot de passe, importe le tableau de bord de supervision et l'affiche sous le vrai nom de votre serveur ;
 - installe les **alertes** (et les outils `curl` et `jq` dont elles ont besoin), et les branche sur PAM pour les connexions SSH et l'utilisation de `sudo` ;
-- active le **pare-feu ufw** : tout est refusé en entrée, sauf SSH (22) et DNS (53) ;
+- active le **pare-feu** (ufw sur Debian/Ubuntu, firewalld sur Fedora/Rocky/Alma) : tout est refusé en entrée, sauf SSH (22) et DNS (53) ;
 - installe **CrowdSec** et applique les correctifs propres à la distribution (par exemple le renommage `sshd-session` de Debian 13, sans lequel CrowdSec ne détecterait pas les attaques SSH) ;
 - durcit la configuration **SSH** (clé uniquement, root interdit).
 
@@ -162,10 +162,11 @@ dig @ip_du_serveur exemple-arnaque-test.com +short  # 0.0.0.0 (règle de test)
 **Le pare-feu**, sur le serveur :
 
 ```bash
-ssh -t utilisateur@ip_du_serveur "sudo ufw status verbose"
+ssh -t utilisateur@ip_du_serveur "sudo ufw status verbose"            # Debian, Ubuntu
+ssh -t utilisateur@ip_du_serveur "sudo firewall-cmd --list-all"      # Fedora, Rocky, Alma
 ```
 
-Il doit être `active`, avec « deny (incoming) » et les règles 22/tcp, 53/tcp et 53/udp.
+Avec ufw, il doit être `active`, avec « deny (incoming) » et les règles 22/tcp, 53/tcp et 53/udp. Avec firewalld, la zone par défaut doit lister les services `ssh` et `dns` (et plus `cockpit`).
 
 **Les alertes**, depuis votre PC. Chaque commande doit faire sonner votre téléphone :
 
@@ -190,7 +191,7 @@ Cette étape est un **bonus** : le serveur est complet sans elle. Elle installe,
 - une alerte à chaque clé USB branchée, avec le nom de l'appareil ;
 - un **mode vigilance** : vous tapez `absent`, vous verrouillez l'écran, et la moindre activité sur le clavier ou la souris déclenche une alerte et reverrouille l'écran.
 
-Prérequis : Fedora, Debian ou Ubuntu, avec le bureau GNOME. Depuis le dossier du projet, **sur ce PC**, avec votre compte habituel :
+Prérequis : Fedora, Debian, Ubuntu, Arch Linux ou openSUSE, avec le bureau GNOME ou KDE Plasma. Depuis le dossier du projet, **sur ce PC**, avec votre compte habituel :
 
 ```bash
 ./install-pc.sh

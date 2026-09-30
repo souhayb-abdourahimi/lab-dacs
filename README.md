@@ -27,7 +27,7 @@ Guide pas-à-pas de A à Z (création de la VM, application ntfy, clé SSH, vér
 ```
 ┌─────────────┐        SSH (clé)        ┌──────────────────────────────┐
 │   PC hôte   │ ──────tunnel──────────▶ │      VM Debian 13 (KVM)       │
-│             │                         │  pare-feu ufw (22, 53)        │
+│             │                         │  ufw/firewalld (22, 53)      │
 │             │ ──────DNS (53)────────▶ │  ┌────────────────────────┐  │
 │  navigateur │ ◀─────filtrage─────────  │  │ AdGuard Home (Docker)  │  │
 │             │                         │  ├────────────────────────┤  │
@@ -61,7 +61,7 @@ Guide pas-à-pas de A à Z (création de la VM, application ntfy, clé SSH, vér
 
 - **Identifiants volés** → connexion SSH par clé uniquement, alerte à chaque connexion.
 - **Attaque par force brute** → CrowdSec détecte et bannit automatiquement, avec alerte.
-- **Exposition de services** → pare-feu ufw : tout est refusé en entrée sauf SSH et DNS ; les interfaces d'administration ne sont joignables que par tunnel SSH.
+- **Exposition de services** → pare-feu (ufw ou firewalld) : tout est refusé en entrée sauf SSH et DNS ; les interfaces d'administration ne sont joignables que par tunnel SSH.
 - **Élévation de privilèges** → root direct interdit, alerte à chaque `sudo`.
 - **Sites de phishing / malware** → filtre DNS avec listes mises à jour quotidiennement.
 - **Pistage publicitaire** → bloqué au niveau réseau, sans logiciel sur les appareils.
@@ -71,7 +71,7 @@ Le [modèle de menaces](docs/09-threat-model.md) détaille précisément le pér
 
 ## Stack technique
 
-Debian 13 · Fedora · Ubuntu · KVM/QEMU · libvirt · Ansible (+ Vault) · Docker & Docker Compose · Prometheus · Grafana · node-exporter · CrowdSec · ufw · nftables · AdGuard Home · systemd (services & timers) · PAM · udev · evdev · ffmpeg · ntfy · Bash · Python · Git
+Debian · Ubuntu · Fedora · Rocky/Alma · Arch · openSUSE · KVM/QEMU · libvirt · Ansible (+ Vault) · Docker & Docker Compose · Prometheus · Grafana · node-exporter · CrowdSec · ufw · firewalld · SELinux · nftables · AdGuard Home · systemd (services & timers) · PAM · udev · evdev · ffmpeg · ntfy · Bash · Python · Git
 
 ## Structure du dépôt
 
@@ -80,11 +80,13 @@ lab-dacs/
 ├── README.md                  ← ce fichier
 ├── install.sh                 ← déploiement du serveur, en une commande
 ├── install-pc.sh              ← installation de la détection d'accès sur le PC
+├── lib/commun.sh              ← fonctions partagées (Ansible, paquets, YAML)
 ├── docs/                      ← documentation détaillée (une page par sujet)
 ├── ansible/                   ← déploiement automatisé
 │   ├── site.yml               ← playbook du serveur
 │   ├── pc.yml                 ← playbook du poste de travail
-│   ├── roles/                 ← secrets, docker, supervision, adguard,
+│   ├── requirements.yml       ← collections Ansible nécessaires
+│   ├── roles/                 ← secrets, selinux, docker, supervision, adguard,
 │   │                             alertes, parefeu, crowdsec, ssh,
 │   │                             detection_pc
 │   ├── group_vars/            ← all.yml.example (modèle de secrets)
@@ -101,9 +103,52 @@ Aucun secret n'est versionné. Chaque utilisateur choisit ses propres identifian
 
 ## Compatibilité et tests
 
-Le déploiement a été validé **de zéro sur une VM Debian 13 vierge**, depuis deux machines de contrôle : **Fedora** et **Ubuntu**. Le test couvre l'installation complète, le filtrage DNS, la supervision, le pare-feu et les trois types d'alertes. Il est prévu pour fonctionner aussi sur Debian 12 et Ubuntu LTS ; les correctifs propres à une distribution (comme le renommage `sshd-session` de Debian 13) sont appliqués automatiquement selon le système détecté.
+Légende : ✅ validé sur machine réelle · 🟢 pris en charge (tâches dédiées, syntaxe vérifiée, pas encore validé sur machine réelle) · ❌ non pris en charge.
 
-Ce test sur machine vierge a révélé une dizaine de défauts invisibles sur la machine de développement ; ils sont décrits dans la [partie 2 du journal de dépannage](docs/08-depannage.md).
+> Les validations ✅ datent d'avant la fiabilisation et la portabilité (sessions 1 et 2) : elles sont à refaire sur ces cibles.
+
+### Serveur cible (`install.sh` → `site.yml`)
+
+| Distribution | Statut | Docker + Compose v2 | Pare-feu | CrowdSec + bouncer | SELinux | Service SSH |
+|---|---|---|---|---|---|---|
+| Debian 13 | ✅ | `docker.io` + `docker-compose` (v2) | ufw | paquets Debian | — | `ssh` |
+| Debian 12 | 🟢 | `docker.io` + plugin officiel (empreinte vérifiée) | ufw | paquets Debian | — | `ssh` |
+| Ubuntu 24.04 | 🟢 | `docker.io` + `docker-compose-v2` | ufw | paquets Ubuntu | — | `ssh` |
+| Ubuntu 22.04 | 🟢 | `docker.io` + `docker-compose-v2` | ufw | dépôt officiel CrowdSec (bouncer iptables) | — | `ssh` |
+| Fedora (40+) | 🟢 | `moby-engine` + `docker-compose` | firewalld | dépôt officiel CrowdSec (bouncer nftables) | contextes `container_file_t` | `sshd` |
+| Rocky Linux / AlmaLinux 9 | 🟢 | Docker CE (dépôt officiel Docker) | firewalld | dépôt officiel CrowdSec (bouncer nftables) | contextes `container_file_t` | `sshd` |
+| Autres (Alpine, Arch, openSUSE…) | ❌ | | | | | |
+
+Détails :
+
+- **CrowdSec** : les paquets de la distribution sont utilisés quand elle fournit à la fois `crowdsec` et `crowdsec-firewall-bouncer`. Sinon, le rôle déclare le dépôt officiel (packagecloud). `crowdsec_forcer_depot_officiel: true` force ce dépôt partout.
+- **SELinux** n'est jamais désactivé. Quand il est actif, le dossier du lab reçoit le contexte `container_file_t`, et node-exporter tourne avec `label=disable` pour lire le système hôte.
+- **OpenSSH ≥ 9.8** (Debian 13, Fedora 41+) : le correctif CrowdSec `sshd-session` s'applique automatiquement dès que le binaire est détecté.
+- **Rocky/Alma** : le paquet `podman-docker` doit être retiré avant le déploiement ; le rôle s'arrête avec un message clair s'il est présent.
+
+### Machine de contrôle (`install.sh`, `install-pc.sh`)
+
+| Gestionnaire de paquets | Distributions | ansible-core de la distribution |
+|---|---|---|
+| `apt` | Debian, Ubuntu, Mint | Debian 13, Ubuntu 24.04 : suffisant · Debian 12, Ubuntu 22.04 : trop ancien → pipx |
+| `dnf` | Fedora, Rocky, Alma | Fedora : suffisant · EL 9 : trop ancien → pipx (ou venv) avec Python ≥ 3.10 |
+| `pacman` | Arch, Manjaro, EndeavourOS | suffisant |
+| `zypper` | openSUSE Tumbleweed / Leap | Tumbleweed : suffisant · Leap : selon version → pipx |
+
+Il faut **ansible-core ≥ 2.16**. Si la distribution fournit une version plus ancienne, les scripts proposent d'installer une version récente pour votre compte seulement, avec **pipx** (dans `~/.local/bin`) ou, à défaut, dans un environnement virtuel Python. Les collections nécessaires sont listées dans [`ansible/requirements.yml`](ansible/requirements.yml). Les scripts n'utilisent que bash et des options POSIX (pas de `grep -P`), et shellcheck les vérifie en CI.
+
+### Module poste de travail (`install-pc.sh` → `pc.yml`)
+
+| | GNOME | KDE Plasma | Autre bureau |
+|---|---|---|---|
+| Alertes verrouillage / déverrouillage | ✅ `org.gnome.ScreenSaver` | 🟢 `org.freedesktop.ScreenSaver` | ❌ (avertissement) |
+| Alerte USB, détection d'activité | ✅ | 🟢 | 🟢 |
+
+Distributions : Fedora, Debian, Ubuntu (prises en charge d'origine), Arch Linux 🟢 (`pacman`), openSUSE Tumbleweed/Leap 🟢 (`zypper`). Les systèmes immuables (Fedora Silverblue/Kinoite, openSUSE MicroOS/Aeon) sont refusés.
+
+### Historique des tests
+
+Le déploiement a été validé **de zéro sur une VM Debian 13 vierge**, depuis deux machines de contrôle : **Fedora** et **Ubuntu**. Le test couvre l'installation complète, le filtrage DNS, la supervision, le pare-feu et les trois types d'alertes. Ce test sur machine vierge a révélé une dizaine de défauts invisibles sur la machine de développement ; ils sont décrits dans la [partie 2 du journal de dépannage](docs/08-depannage.md).
 
 ## Limites connues et suite du projet
 
