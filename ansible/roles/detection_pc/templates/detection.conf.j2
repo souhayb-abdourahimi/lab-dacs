@@ -1,6 +1,6 @@
 # Généré par Ansible (rôle detection_pc) — ne pas éditer à la main
 NTFY_TOPIC={{ ntfy_topic }}
-SERVEUR_PREUVES={{ serveur_preuves }}
+SERVEUR_PREUVES={{ detection_pc_serveur_preuves }}
 # Webcam choisie à l'installation (oui/non). Pour changer : relancer install-pc.sh
 WEBCAM_ACTIVE={{ 'oui' if (webcam_active | bool) else 'non' }}
 WEBCAM={{ webcam | default('/dev/video0') }}

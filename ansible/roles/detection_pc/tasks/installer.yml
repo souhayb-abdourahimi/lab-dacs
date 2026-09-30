@@ -10,20 +10,20 @@
 - name: Détecter un système immuable (Fedora Silverblue, Kinoite...)
   ansible.builtin.stat:
     path: /run/ostree-booted
-  register: ostree
+  register: detection_pc_ostree
 
 # openSUSE MicroOS / Aeon / Kalpa : racine en lecture seule, paquets via transactional-update
 - name: Détecter une racine en lecture seule (openSUSE MicroOS, Aeon...)
   ansible.builtin.set_fact:
-    racine_lecture_seule: >-
+    detection_pc_racine_lecture_seule: >-
       {{ 'ro' in ((ansible_facts['mounts'] | selectattr('mount', 'equalto', '/') | map(attribute='options')
                    | first | default('')).split(',')) }}
 
 - name: Refuser les systèmes immuables
   ansible.builtin.assert:
     that:
-      - not ostree.stat.exists
-      - not (racine_lecture_seule | bool)
+      - not detection_pc_ostree.stat.exists
+      - not (detection_pc_racine_lecture_seule | bool)
     fail_msg: >-
       Système immuable détecté (Fedora Silverblue, openSUSE MicroOS/Aeon...) : les paquets ne
       peuvent pas y être installés directement. Non pris en charge.
@@ -53,16 +53,17 @@
 # ---------- 2. Dépendances : n'installer que ce qui manque ----------
 # On teste la commande plutôt que le paquet : évite les conflits (ex. ffmpeg de RPM Fusion).
 - name: Repérer les commandes manquantes
-  ansible.builtin.shell: "command -v {{ item }}"
+  # command -v est une commande interne du shell : shell est nécessaire ici
+  ansible.builtin.shell: "command -v {{ item }}"  # noqa: command-instead-of-shell
   # ffmpeg seulement si la webcam a été choisie : rien de lié à la caméra sinon
   loop: "{{ ['curl', 'notify-send', 'dbus-monitor', 'udevadm'] + (['ffmpeg'] if (webcam_active | bool) else []) }}"
-  register: commandes
+  register: detection_pc_commandes
   changed_when: false
   failed_when: false
 
 - name: Repérer le module Python evdev
   ansible.builtin.command: python3 -c "import evdev"
-  register: py_evdev
+  register: detection_pc_py_evdev
   changed_when: false
   failed_when: false
 
@@ -79,43 +80,43 @@
       Archlinux: python-evdev
       Suse: python3-evdev
   ansible.builtin.set_fact:
-    paquets_manquants: >-
-      {{ (commandes.results | selectattr('rc', 'ne', 0) | map(attribute='item')
+    detection_pc_paquets_manquants: >-
+      {{ (detection_pc_commandes.results | selectattr('rc', 'ne', 0) | map(attribute='item')
           | map('extract', noms[ansible_facts['os_family']]) | list)
-         + ([evdev[ansible_facts['os_family']]] if py_evdev.rc != 0 else []) }}
+         + ([evdev[ansible_facts['os_family']]] if detection_pc_py_evdev.rc != 0 else []) }}
 
 # Sur Debian/Ubuntu, l'index des paquets doit être à jour, sinon apt réclame
 # des versions supprimées des miroirs (erreur 404) sur un PC rarement mis à jour.
 - name: Installer les paquets manquants (Debian, Ubuntu)
   ansible.builtin.apt:
-    name: "{{ paquets_manquants }}"
+    name: "{{ detection_pc_paquets_manquants }}"
     state: present
     update_cache: true
   become: true
-  when: paquets_manquants | length > 0 and ansible_facts['os_family'] == 'Debian'
+  when: detection_pc_paquets_manquants | length > 0 and ansible_facts['os_family'] == 'Debian'
 
 - name: Installer les paquets manquants (Fedora)
   ansible.builtin.dnf:
-    name: "{{ paquets_manquants }}"
+    name: "{{ detection_pc_paquets_manquants }}"
     state: present
   become: true
-  when: paquets_manquants | length > 0 and ansible_facts['os_family'] == 'RedHat'
+  when: detection_pc_paquets_manquants | length > 0 and ansible_facts['os_family'] == 'RedHat'
 
 # Arch : base de paquets rafraîchie avant l'installation (sinon miroirs en 404)
 - name: Installer les paquets manquants (Arch Linux)
   community.general.pacman:
-    name: "{{ paquets_manquants }}"
+    name: "{{ detection_pc_paquets_manquants }}"
     state: present
     update_cache: true
   become: true
-  when: paquets_manquants | length > 0 and ansible_facts['os_family'] == 'Archlinux'
+  when: detection_pc_paquets_manquants | length > 0 and ansible_facts['os_family'] == 'Archlinux'
 
 - name: Installer les paquets manquants (openSUSE)
   community.general.zypper:
-    name: "{{ paquets_manquants }}"
+    name: "{{ detection_pc_paquets_manquants }}"
     state: present
   become: true
-  when: paquets_manquants | length > 0 and ansible_facts['os_family'] == 'Suse'
+  when: detection_pc_paquets_manquants | length > 0 and ansible_facts['os_family'] == 'Suse'
 
 # ---------- 3. Droits : groupe input pour lire clavier et souris ----------
 - name: Ajouter l'utilisateur au groupe input
@@ -124,12 +125,12 @@
     groups: input
     append: true
   become: true
-  register: groupe_input
+  register: detection_pc_groupe_input
 
 # ---------- 4. Configuration : secrets hors du dépôt, sans sudo ----------
 - name: Déterminer le serveur qui reçoit les copies de preuves
   ansible.builtin.set_fact:
-    serveur_preuves: >-
+    detection_pc_serveur_preuves: >-
       {{ (hostvars[groups['serveurs'][0]]['ansible_user'] ~ '@' ~ hostvars[groups['serveurs'][0]]['ansible_host'])
          if (groups['serveurs'] | default([]) | length > 0) else '' }}
 
@@ -262,7 +263,7 @@
 - name: Détecter une session utilisateur active
   ansible.builtin.stat:
     path: "/run/user/{{ ansible_facts['user_uid'] }}/bus"
-  register: bus_session
+  register: detection_pc_bus_session
 
 - name: Redémarrer les services dans la session en cours
   ansible.builtin.systemd:
@@ -275,7 +276,7 @@
     - surveillance-activite.service
   environment:
     XDG_RUNTIME_DIR: "/run/user/{{ ansible_facts['user_uid'] }}"
-  when: bus_session.stat.exists
+  when: detection_pc_bus_session.stat.exists
 
 # ---------- 8. Dossier des preuves sur le serveur ----------
 - name: Créer le dossier des preuves sur le serveur
@@ -286,7 +287,7 @@
   # default() : Ansible évalue delegate_to AVANT le when ; sans groupe serveurs, il planterait
   delegate_to: "{{ (groups['serveurs'] | default(['localhost']))[0] }}"
   become: false
-  when: serveur_preuves | length > 0
+  when: detection_pc_serveur_preuves | length > 0
 
 # ---------- 9. Bilan ----------
 - name: Récapitulatif
@@ -294,6 +295,12 @@
     msg:
       - "Détection d'accès installée pour {{ utilisateur }}."
       - "Commandes : absent (puis Super+L), present, vigilance."
-      - "{{ 'Webcam installée mais DÉSACTIVÉE : activez la photo avec photo-on, coupez-la avec photo-off.' if (webcam_active | bool) else 'Webcam non installée : aucune photo ne sera jamais prise.' }}"
-      - "{{ ('Copie des preuves vers ' ~ serveur_preuves) if serveur_preuves | length > 0 else 'Aucun serveur configuré : les photos sont seulement envoyées sur le téléphone.' }}"
-      - "{{ 'IMPORTANT : déconnectez-vous puis reconnectez-vous pour activer le groupe input et les commandes.' if groupe_input.changed else 'Groupe input déjà actif.' }}"
+      - >-
+        {{ 'Webcam installée mais DÉSACTIVÉE : activez la photo avec photo-on, coupez-la avec photo-off.'
+           if (webcam_active | bool) else 'Webcam non installée : aucune photo ne sera jamais prise.' }}
+      - >-
+        {{ ('Copie des preuves vers ' ~ detection_pc_serveur_preuves) if detection_pc_serveur_preuves | length > 0
+           else 'Aucun serveur configuré : les photos sont seulement envoyées sur le téléphone.' }}
+      - >-
+        {{ 'IMPORTANT : déconnectez-vous puis reconnectez-vous pour activer le groupe input et les commandes.'
+           if detection_pc_groupe_input.changed else 'Groupe input déjà actif.' }}

@@ -19,15 +19,12 @@
     target: "{{ lab_dacs_dir }}(/.*)?"
     setype: container_file_t
     state: present
-  register: selinux_fcontext
   when: ansible_facts['selinux']['status'] | default('disabled') == 'enabled'
+  notify: Réétiqueter le dossier du lab
 
-# Déploiements existants : réétiqueter les fichiers déjà en place
+# Tout de suite (et non en fin de play) : les rôles suivants démarrent les conteneurs
 - name: Appliquer le contexte aux fichiers existants
-  ansible.builtin.command: restorecon -R "{{ lab_dacs_dir }}"
-  args:
-    removes: "{{ lab_dacs_dir }}"
-  when: selinux_fcontext is changed
+  ansible.builtin.meta: flush_handlers
 
 - name: État de SELinux
   ansible.builtin.debug:

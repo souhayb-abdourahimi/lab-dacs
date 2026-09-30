@@ -1,0 +1,7 @@
+# Configuration ruff (lint Python) du dépôt
+target-version = "py39"
+line-length = 120
+
+[lint]
+# pycodestyle, pyflakes, bugbear, pyupgrade, simplifications, imports triés
+select = ["E", "W", "F", "B", "UP", "SIM", "I"]

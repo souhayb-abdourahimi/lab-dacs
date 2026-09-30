@@ -1,15 +1,12 @@
 ---
 # RHEL 9 et ses dérivés ne fournissent pas Docker (seulement Podman) : on utilise
 # le dépôt officiel de Docker. Rocky et Alma utilisent le dépôt « centos ».
-- name: Vérifier l'absence de podman-docker (conflit avec la commande docker)
-  ansible.builtin.command: rpm -q podman-docker
-  register: docker_podman_docker
-  changed_when: false
-  failed_when: false
+- name: Lister les paquets installés
+  ansible.builtin.package_facts:
 
 - name: Refuser l'installation si podman-docker est présent
   ansible.builtin.assert:
-    that: docker_podman_docker.rc != 0
+    that: "'podman-docker' not in ansible_facts['packages']"
     fail_msg: >-
       Le paquet podman-docker fournit déjà une commande « docker » (émulation Podman)
       incompatible avec Docker CE. Retirez-le (sudo dnf remove podman-docker) puis relancez.

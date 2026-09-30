@@ -1,0 +1,7 @@
+---
+# Déploiements existants : réétiqueter les fichiers déjà en place
+- name: Réétiqueter le dossier du lab
+  ansible.builtin.command: restorecon -R "{{ lab_dacs_dir }}"
+  args:
+    removes: "{{ lab_dacs_dir }}"
+  changed_when: true

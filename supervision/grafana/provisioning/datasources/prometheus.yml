@@ -1,3 +1,4 @@
+---
 # Grafana se connecte automatiquement à Prometheus au démarrage.
 apiVersion: 1
 datasources:

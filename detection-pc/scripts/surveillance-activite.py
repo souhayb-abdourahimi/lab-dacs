@@ -1,37 +1,59 @@
 #!/usr/bin/env python3
 # Alerte + verrouille si activite pendant le mode vigilance
 # Delai de grace de 10 s apres l'armement (pour partir sans se faire detecter)
-import time, glob, subprocess, select
+import contextlib
+import glob
+import select
+import subprocess
+import time
 from pathlib import Path
+
 import evdev
 
 DRAPEAU = Path.home() / ".local/state/mode-vigilance"
 CONF = Path.home() / ".config/lab-dacs/detection.conf"
 CAPTURE = Path.home() / ".local/bin/capture-intrus.sh"
 
+
 def topic():
     try:
-        for l in open(CONF):
-            if l.startswith("NTFY_TOPIC="):
-                return l.strip().split("=", 1)[1].strip('"')
-    except Exception:
+        with open(CONF) as f:
+            for ligne in f:
+                if ligne.startswith("NTFY_TOPIC="):
+                    return ligne.strip().split("=", 1)[1].strip('"')
+    except OSError:
         return None
+    return None
+
 
 def reagir():
-    if CAPTURE.exists():   # la capture webcam est optionnelle
-        subprocess.run([str(CAPTURE)],
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    subprocess.run(["loginctl", "lock-session"],
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if CAPTURE.exists():  # la capture webcam est optionnelle
+        subprocess.run([str(CAPTURE)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(["loginctl", "lock-session"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     t = topic()
     if not t:
         return
     quand = time.strftime("%d/%m/%Y %H:%M:%S")
-    subprocess.run(["curl", "-s", "-m", "5",
-        "-H", "Title: Intrusion - ecran verrouille",
-        "-H", "Tags: rotating_light", "-H", "Priority: urgent",
-        "-d", f"Activite detectee en mode absent. Ecran verrouille automatiquement.\nQuand : {quand}",
-        f"https://ntfy.sh/{t}"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(
+        [
+            "curl",
+            "-s",
+            "-m",
+            "5",
+            "-H",
+            "Title: Intrusion - ecran verrouille",
+            "-H",
+            "Tags: rotating_light",
+            "-H",
+            "Priority: urgent",
+            "-d",
+            f"Activite detectee en mode absent. Ecran verrouille automatiquement.\nQuand : {quand}",
+            f"https://ntfy.sh/{t}",
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
 
 # Les peripheriques ne sont lisibles qu'avec le groupe "input", actif apres
 # reconnexion : on ignore ceux qu'on ne peut pas ouvrir au lieu de planter.
@@ -39,17 +61,15 @@ def reagir():
 # pour surveiller aussi un clavier ou une souris branche apres le demarrage ;
 # un peripherique debranche (lecture en erreur) est retire de la surveillance.
 RESCAN = 2
-ouverts = {}   # chemin -> InputDevice
+ouverts = {}  # chemin -> InputDevice
 ignores = set()  # chemins illisibles (droits), retentes seulement s'ils reapparaissent
 
 
 def fermer(chemin):
     dev = ouverts.pop(chemin, None)
     if dev is not None:
-        try:
+        with contextlib.suppress(OSError):
             dev.close()
-        except OSError:
-            pass
 
 
 def rescanner():
@@ -67,8 +87,11 @@ def rescanner():
 
 rescanner()
 if not ouverts:
-    print("Aucun peripherique d'entree lisible pour l'instant : reconnectez-vous (groupe input)."
-          " En attente d'un peripherique...", flush=True)
+    print(
+        "Aucun peripherique d'entree lisible pour l'instant : reconnectez-vous (groupe input)."
+        " En attente d'un peripherique...",
+        flush=True,
+    )
 dernier = 0
 arme_depuis = 0
 etait_arme = False

@@ -1,3 +1,4 @@
+---
 # Supervision du lab : Prometheus (collecte) + node-exporter (métriques du serveur) + Grafana (affichage)
 # Versions fixées pour un déploiement reproductible : vérifie les plus récentes sur Docker Hub.
 
