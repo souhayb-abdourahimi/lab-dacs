@@ -1,12 +1,70 @@
 ---
-# Installe Docker (version Debian) sur la VM
-- name: Installer Docker et Compose
+# Installe Docker (version de la distribution) et le plugin « docker compose » v2,
+# requis par community.docker.docker_compose_v2. Selon la distribution, le plugin
+# v2 ne porte pas le même nom de paquet :
+#   - Ubuntu 22.04 / 24.04 : docker-compose-v2 (le paquet docker-compose y est l'ancien v1)
+#   - Debian 13            : docker-compose (déjà en v2)
+#   - Debian 12            : aucun paquet v2 -> binaire officiel, empreinte vérifiée
+- name: Installer Docker
   ansible.builtin.apt:
-    name:
-      - docker.io
-      - docker-compose
+    name: docker.io
     state: present
     update_cache: true
+
+- name: Choisir le paquet du plugin Compose v2 pour cette distribution
+  ansible.builtin.set_fact:
+    docker_compose_paquet: >-
+      {{ 'docker-compose-v2' if ansible_facts['distribution'] == 'Ubuntu'
+         else ('docker-compose' if ansible_facts['distribution'] == 'Debian'
+               and ansible_facts['distribution_major_version'] | int >= 13
+               else '') }}
+
+- name: Installer le plugin Compose v2 depuis la distribution
+  ansible.builtin.apt:
+    name: "{{ docker_compose_paquet }}"
+    state: present
+  when: docker_compose_paquet | length > 0
+
+- name: Vérifier la présence de « docker compose » v2
+  ansible.builtin.command: docker compose version --short
+  register: docker_compose_v2
+  changed_when: false
+  failed_when: false
+
+# Secours (Debian 12, ou paquet absent/trop ancien) : binaire officiel dans le
+# dossier des plugins de la CLI Docker, empreinte SHA-256 vérifiée au téléchargement.
+- name: Installer le plugin Compose v2 officiel (secours)
+  when: >-
+    docker_compose_v2.rc != 0
+    or not (docker_compose_v2.stdout | trim | regex_replace('^v', '')) is version('2.18.0', '>=')
+  block:
+    - name: Vérifier que l'architecture est prise en charge
+      ansible.builtin.assert:
+        that: ansible_facts['architecture'] in docker_compose_sha256
+        fail_msg: >-
+          Architecture {{ ansible_facts['architecture'] }} non prise en charge pour le
+          plugin Compose de secours : installez « docker compose » v2 manuellement.
+
+    - name: Créer le dossier des plugins de la CLI Docker
+      ansible.builtin.file:
+        path: /usr/local/lib/docker/cli-plugins
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Télécharger le plugin Compose v2
+      ansible.builtin.get_url:
+        url: "https://github.com/docker/compose/releases/download/v{{ docker_compose_version }}/docker-compose-linux-{{ ansible_facts['architecture'] }}"
+        dest: /usr/local/lib/docker/cli-plugins/docker-compose
+        checksum: "sha256:{{ docker_compose_sha256[ansible_facts['architecture']] }}"
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Vérifier « docker compose » après installation
+      ansible.builtin.command: docker compose version
+      changed_when: false
 
 - name: Démarrer et activer Docker
   ansible.builtin.systemd:

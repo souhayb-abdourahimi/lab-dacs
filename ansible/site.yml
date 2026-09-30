@@ -8,6 +8,19 @@
       changed_when: false
       # Le module 'raw' n'a pas besoin de Python sur la cible : c'est le seul
       # moyen d'installer Python sur une Debian minimale qui n'en a pas encore.
+
+    # Dossier de déploiement des stacks Docker : par défaut ~/lab-dacs, avec le
+    # VRAI dossier personnel de l'utilisateur (lu dans la base des comptes, il
+    # n'est pas forcément /home/<utilisateur>). Surchargeable, ex. :
+    #   ansible-playbook site.yml -e lab_dacs_dir=/opt/lab-dacs
+    - name: Lire le compte de l'utilisateur de déploiement
+      ansible.builtin.getent:
+        database: passwd
+        key: "{{ ansible_user }}"
+
+    - name: Définir le dossier de déploiement du lab
+      ansible.builtin.set_fact:
+        lab_dacs_dir: "{{ lab_dacs_dir | default(ansible_facts['getent_passwd'][ansible_user][4] ~ '/lab-dacs') }}"
   roles:
     - secrets
     - docker

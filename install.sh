@@ -18,6 +18,11 @@ ok()      { echo -e "${VERT}✔ $1${RAZ}"; }
 attention(){ echo -e "${JAUNE}⚠ $1${RAZ}"; }
 erreur()  { echo -e "${ROUGE}✘ $1${RAZ}" >&2; }
 
+# Écrit une valeur sous forme de chaîne YAML entre apostrophes : dans ce style,
+# seul l'apostrophe doit être échappée (en la doublant). Les caractères : # " \ etc.
+# restent littéraux, donc un mot de passe quelconque ne peut pas casser le fichier.
+yaml_quote() { local v=${1//\'/\'\'}; printf "'%s'" "$v"; }
+
 # --- On se place dans le dossier ansible/ ----------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR/ansible" || { erreur "Dossier ansible/ introuvable. Lancez ce script depuis la racine du dépôt."; exit 1; }
@@ -58,7 +63,8 @@ ok "Collection community.docker prête."
 
 # --- 3. Inventaire (adresse du serveur) ------------------------------------
 titre "3/6 — Adresse de votre serveur"
-ANCIENNE_IP=$(grep -oP '(?<=ansible_host: ).*' inventory/hosts.yml 2>/dev/null || true)
+# (la valeur peut être entre apostrophes depuis que l'inventaire est échappé)
+ANCIENNE_IP=$(sed -n "s/^ *ansible_host: *'\{0,1\}\([^' ]*\)'\{0,1\} *\$/\1/p" inventory/hosts.yml 2>/dev/null | head -1 || true)
 read -r -p "Adresse IP du serveur à configurer${ANCIENNE_IP:+ [$ANCIENNE_IP]} : " SERVEUR_IP
 SERVEUR_IP="${SERVEUR_IP:-$ANCIENNE_IP}"
 read -r -p "Nom d'utilisateur SSH sur le serveur [souhayb] : " SERVEUR_USER
@@ -70,11 +76,37 @@ cat > inventory/hosts.yml <<YAML
 serveurs:
   hosts:
     lab-vm:
-      ansible_host: ${SERVEUR_IP}
-      ansible_user: ${SERVEUR_USER}
+      ansible_host: $(yaml_quote "$SERVEUR_IP")
+      ansible_user: $(yaml_quote "$SERVEUR_USER")
       ansible_python_interpreter: /usr/bin/python3
 YAML
 ok "Inventaire écrit (serveur ${SERVEUR_IP}, utilisateur ${SERVEUR_USER})."
+
+# --- Clé d'hôte SSH du serveur ---------------------------------------------
+# Ansible vérifie les clés d'hôte (ansible.cfg). Si le serveur est inconnu, on
+# affiche son empreinte pour que l'utilisateur la compare (sur le serveur :
+# ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub) avant de l'enregistrer.
+KNOWN_HOSTS="$HOME/.ssh/known_hosts"
+if ssh-keygen -F "$SERVEUR_IP" -f "$KNOWN_HOSTS" >/dev/null 2>&1; then
+  ok "Clé d'hôte du serveur déjà connue (~/.ssh/known_hosts)."
+else
+  CLES_HOTE=$(ssh-keyscan -T 5 -t ed25519,ecdsa,rsa "$SERVEUR_IP" 2>/dev/null || true)
+  if [[ -z "$CLES_HOTE" ]]; then
+    attention "Impossible de lire la clé d'hôte de ${SERVEUR_IP} (serveur injoignable ?)."
+    attention "Elle sera enregistrée à la première connexion (StrictHostKeyChecking=accept-new)."
+  else
+    echo "Empreinte(s) de la clé d'hôte du serveur ${SERVEUR_IP} :"
+    ssh-keygen -lf - <<<"$CLES_HOTE" | sed 's/^/    /'
+    echo "Comparez-la avec celle affichée SUR le serveur :"
+    echo "    ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub"
+    read -r -p "L'empreinte correspond-elle ? [o/N] " rep_cle
+    [[ "$rep_cle" =~ ^[oO]$ ]] || { erreur "Clé d'hôte non confirmée. Arrêt."; exit 1; }
+    mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
+    printf '%s\n' "$CLES_HOTE" >> "$KNOWN_HOSTS"
+    chmod 600 "$KNOWN_HOSTS"
+    ok "Clé d'hôte ajoutée à ~/.ssh/known_hosts."
+  fi
+fi
 
 # --- 4. Secrets (coffre Vault) ---------------------------------------------
 # IMPORTANT : les secrets sont créés AVANT le test de connexion, car le test
@@ -105,11 +137,15 @@ else
   chmod 600 .vault_pass
 
   # On écrit les secrets en clair puis on chiffre le fichier sur place
-  cat > group_vars/all.yml <<YAML
-grafana_admin_password: ${GRAFANA_PASS}
-ntfy_topic: ${NTFY_TOPIC}
-adguard_auth: ${AG_USER}:${AG_PASS}
-YAML
+  # (umask 077 : le fichier en clair n'est jamais lisible par d'autres comptes)
+  (
+    umask 077
+    {
+      printf 'grafana_admin_password: %s\n' "$(yaml_quote "$GRAFANA_PASS")"
+      printf 'ntfy_topic: %s\n'             "$(yaml_quote "$NTFY_TOPIC")"
+      printf 'adguard_auth: %s\n'           "$(yaml_quote "${AG_USER}:${AG_PASS}")"
+    } > group_vars/all.yml
+  )
   ansible-vault encrypt group_vars/all.yml >/dev/null
   ok "Coffre créé et chiffré."
 fi

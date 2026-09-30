@@ -12,6 +12,8 @@ titre()    { echo -e "\n${BLEU}==> $1${RAZ}"; }
 ok()       { echo -e "${VERT}✔ $1${RAZ}"; }
 attention(){ echo -e "${JAUNE}⚠ $1${RAZ}"; }
 erreur()   { echo -e "${ROUGE}✘ $1${RAZ}" >&2; }
+# Chaîne YAML entre apostrophes : seule l'apostrophe est à échapper (doublée).
+yaml_quote() { local v=${1//\'/\'\'}; printf "'%s'" "$v"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR/ansible" || { erreur "Dossier ansible/ introuvable."; exit 1; }
@@ -109,7 +111,7 @@ else
   [[ -f .vault_pass ]] || { printf '%s' "$(head -c 24 /dev/urandom | base64)" > .vault_pass; chmod 600 .vault_pass; }
   TMPVARS=$(mktemp)
   chmod 600 "$TMPVARS"
-  printf 'ntfy_topic: "%s"\n' "$NTFY_TOPIC" > "$TMPVARS"
+  printf 'ntfy_topic: %s\n' "$(yaml_quote "$NTFY_TOPIC")" > "$TMPVARS"
   trap 'rm -f "$TMPVARS"' EXIT
   EXTRA=(-e "@$TMPVARS")
 fi

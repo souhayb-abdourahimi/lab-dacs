@@ -1,6 +1,8 @@
 #!/bin/sh
 # Appelé par PAM à chaque utilisation de sudo
 [ "$PAM_TYPE" = "open_session" ] || exit 0
+# Fichier généré par Ansible (modèle : alertes/lab-alertes.conf.example).
+# shellcheck source=/dev/null
 . /etc/lab-alertes.conf
 DERNIER=/var/lib/lab-alertes/dernier-sudo
 mkdir -p /var/lib/lab-alertes

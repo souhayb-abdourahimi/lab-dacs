@@ -35,28 +35,73 @@ def reagir():
 
 # Les peripheriques ne sont lisibles qu'avec le groupe "input", actif apres
 # reconnexion : on ignore ceux qu'on ne peut pas ouvrir au lieu de planter.
-devices = []
-for p in glob.glob("/dev/input/event*"):
-    try:
-        devices.append(evdev.InputDevice(p))
-    except (PermissionError, OSError):
-        pass
-if not devices:
-    print("Aucun peripherique d'entree lisible : reconnectez-vous (groupe input).")
-    exit(0)
-dev_map = {d.fd: d for d in devices}
+# Hotplug : la liste /dev/input/event* est relue toutes les RESCAN secondes,
+# pour surveiller aussi un clavier ou une souris branche apres le demarrage ;
+# un peripherique debranche (lecture en erreur) est retire de la surveillance.
+RESCAN = 2
+ouverts = {}   # chemin -> InputDevice
+ignores = set()  # chemins illisibles (droits), retentes seulement s'ils reapparaissent
+
+
+def fermer(chemin):
+    dev = ouverts.pop(chemin, None)
+    if dev is not None:
+        try:
+            dev.close()
+        except OSError:
+            pass
+
+
+def rescanner():
+    presents = set(glob.glob("/dev/input/event*"))
+    for chemin in list(ouverts):
+        if chemin not in presents:
+            fermer(chemin)
+    ignores.intersection_update(presents)
+    for chemin in presents - set(ouverts) - ignores:
+        try:
+            ouverts[chemin] = evdev.InputDevice(chemin)
+        except (PermissionError, OSError):
+            ignores.add(chemin)
+
+
+rescanner()
+if not ouverts:
+    print("Aucun peripherique d'entree lisible pour l'instant : reconnectez-vous (groupe input)."
+          " En attente d'un peripherique...", flush=True)
 dernier = 0
 arme_depuis = 0
 etait_arme = False
+dernier_scan = time.monotonic()
 
 while True:
-    r, _, _ = select.select(dev_map, [], [], 1)
-    for fd in r:
+    if time.monotonic() - dernier_scan >= RESCAN:
+        rescanner()
+        dernier_scan = time.monotonic()
+
+    par_fd = {d.fd: (chemin, d) for chemin, d in ouverts.items()}
+    if par_fd:
         try:
-            for _ in dev_map[fd].read():
+            r, _, _ = select.select(list(par_fd), [], [], 1)
+        except (OSError, ValueError):
+            # Un descripteur est devenu invalide (debranchement) : on repart d'un scan propre
+            rescanner()
+            dernier_scan = time.monotonic()
+            continue
+    else:
+        time.sleep(1)
+        r = []
+
+    for fd in r:
+        chemin, dev = par_fd[fd]
+        try:
+            for _ in dev.read():
                 pass
-        except OSError:
+        except BlockingIOError:
             pass
+        except OSError:
+            # Peripherique debranche (ENODEV) : il sera re-ouvert s'il revient
+            fermer(chemin)
 
     arme = DRAPEAU.exists()
     # On note l'instant ou la vigilance vient d'etre armee

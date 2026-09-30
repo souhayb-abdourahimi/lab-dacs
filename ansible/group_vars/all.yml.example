@@ -4,4 +4,7 @@
 
 grafana_admin_password: choisir_un_mot_de_passe_grafana
 ntfy_topic: choisir-un-sujet-secret-ex-monlab-ab12cd34
-adguard_auth: admin:choisir_un_mot_de_passe_adguard
+# identifiant:mot_de_passe — découpé sur le premier ':' (le mot de passe peut en contenir).
+# Mettez la valeur entre apostrophes ; une apostrophe interne se double ('').
+# Variante : définir plutôt adguard_user et adguard_password séparément.
+adguard_auth: 'admin:choisir_un_mot_de_passe_adguard'

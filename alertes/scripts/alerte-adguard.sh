@@ -1,5 +1,7 @@
 #!/bin/sh
 # Notifie seulement les blocages venant des listes de DANGER (phishing/malware)
+# Fichier généré par Ansible (modèle : alertes/lab-alertes.conf.example).
+# shellcheck source=/dev/null
 . /etc/lab-alertes.conf
 ETAT=/var/lib/lab-alertes/adguard-derniers
 LISTES_DANGER="1789908844 1789908846"   # Phishing Army + URLhaus

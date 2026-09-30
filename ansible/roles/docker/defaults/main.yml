@@ -1,0 +1,9 @@
+---
+# Plugin « docker compose » v2 de secours, utilisé seulement si la distribution
+# n'en fournit pas en paquet (cas de Debian 12). Version et empreintes SHA-256
+# figées : reprises des fichiers .sha256 publiés sur
+# https://github.com/docker/compose/releases/tag/v2.29.7
+docker_compose_version: "2.29.7"
+docker_compose_sha256:
+  x86_64: "383ce6698cd5d5bbf958d2c8489ed75094e34a77d340404d9f32c4ae9e12baf0"
+  aarch64: "6e9fbd5daa20dca5d7d89145081ae8155d68ef2928b497d9f85b54fe0f9dbb2c"
