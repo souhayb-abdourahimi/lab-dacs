@@ -2,29 +2,20 @@
 #
 # install.sh — Déploiement guidé du lab DACS
 #
-# Ce script prépare la machine de contrôle et déploie tout le lab sur un
-# serveur Debian/Ubuntu que vous possédez déjà et qui est accessible en SSH
-# par clé. Il ne crée pas le serveur et ne configure pas la clé SSH :
+# Ce script prépare la machine de contrôle (Linux avec apt, dnf, pacman ou
+# zypper) et déploie tout le lab sur un serveur Debian, Ubuntu, Fedora, Rocky
+# ou Alma que vous possédez déjà et qui est accessible en SSH par clé. Il ne crée pas le serveur et ne configure pas la clé SSH :
 # ces deux étapes sont décrites dans docs/07-deploiement-ansible.md.
 #
 # Usage : ./install.sh
 #
 set -euo pipefail
 
-# --- Couleurs pour la lisibilité -------------------------------------------
-BLEU="\033[1;34m"; VERT="\033[1;32m"; ROUGE="\033[1;31m"; JAUNE="\033[1;33m"; RAZ="\033[0m"
-titre()   { echo -e "\n${BLEU}==> $1${RAZ}"; }
-ok()      { echo -e "${VERT}✔ $1${RAZ}"; }
-attention(){ echo -e "${JAUNE}⚠ $1${RAZ}"; }
-erreur()  { echo -e "${ROUGE}✘ $1${RAZ}" >&2; }
-
-# Écrit une valeur sous forme de chaîne YAML entre apostrophes : dans ce style,
-# seul l'apostrophe doit être échappée (en la doublant). Les caractères : # " \ etc.
-# restent littéraux, donc un mot de passe quelconque ne peut pas casser le fichier.
-yaml_quote() { local v=${1//\'/\'\'}; printf "'%s'" "$v"; }
-
 # --- On se place dans le dossier ansible/ ----------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Fonctions communes (couleurs, yaml_quote, installation d'Ansible...)
+# shellcheck source=lib/commun.sh
+. "$SCRIPT_DIR/lib/commun.sh"
 cd "$SCRIPT_DIR/ansible" || { erreur "Dossier ansible/ introuvable. Lancez ce script depuis la racine du dépôt."; exit 1; }
 
 echo -e "${BLEU}"
@@ -33,7 +24,7 @@ echo "  │        Déploiement du lab DACS               │"
 echo "  └────────────────────────────────────────────┘"
 echo -e "${RAZ}"
 echo "Ce script va préparer Ansible puis déployer le lab sur votre serveur."
-echo "Prérequis : un serveur Debian/Ubuntu accessible en SSH par clé."
+echo "Prérequis : un serveur Debian, Ubuntu, Fedora, Rocky ou Alma accessible en SSH par clé."
 echo "(Voir docs/07-deploiement-ansible.md si ce n'est pas encore le cas.)"
 echo
 read -r -p "Continuer ? [o/N] " reponse
@@ -41,25 +32,12 @@ read -r -p "Continuer ? [o/N] " reponse
 
 # --- 1. Vérifier / installer Ansible ---------------------------------------
 titre "1/6 — Vérification d'Ansible"
-if command -v ansible-playbook >/dev/null 2>&1; then
-  ok "Ansible est déjà installé ($(ansible --version | head -1))."
-else
-  attention "Ansible n'est pas installé."
-  if   command -v dnf    >/dev/null 2>&1; then INSTALL="sudo dnf install -y ansible"
-  elif command -v apt    >/dev/null 2>&1; then INSTALL="sudo apt update && sudo apt install -y ansible"
-  elif command -v pacman >/dev/null 2>&1; then INSTALL="sudo pacman -S --noconfirm ansible"
-  else erreur "Gestionnaire de paquets non reconnu. Installez Ansible manuellement, puis relancez."; exit 1; fi
-  echo "Commande d'installation : $INSTALL"
-  read -r -p "Installer Ansible maintenant ? [o/N] " rep
-  [[ "$rep" =~ ^[oO]$ ]] || { erreur "Ansible est requis. Arrêt."; exit 1; }
-  eval "$INSTALL"
-  ok "Ansible installé."
-fi
+assurer_ansible || exit 1
 
-# --- 2. Collection Docker --------------------------------------------------
-titre "2/6 — Collection Ansible pour Docker"
-ansible-galaxy collection install community.docker community.general >/dev/null
-ok "Collection community.docker prête."
+# --- 2. Collections Ansible ------------------------------------------------
+titre "2/6 — Collections Ansible (Docker, pare-feu, SELinux)"
+installer_collections
+ok "Collections community.docker, community.general et ansible.posix prêtes."
 
 # --- 3. Inventaire (adresse du serveur) ------------------------------------
 titre "3/6 — Adresse de votre serveur"

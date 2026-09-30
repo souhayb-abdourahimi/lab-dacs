@@ -2,20 +2,16 @@
 #
 # install-pc.sh — Installe la détection d'accès physique sur CE poste de travail.
 #
-# À lancer sur le PC à protéger (Fedora, Debian ou Ubuntu, bureau GNOME),
+# À lancer sur le PC à protéger (Fedora, Debian, Ubuntu, Arch Linux ou openSUSE ;
+# bureau GNOME ou KDE Plasma),
 # avec votre compte habituel. Pour tout retirer : ./install-pc.sh --retirer
 #
 set -euo pipefail
 
-BLEU="\033[1;34m"; VERT="\033[1;32m"; ROUGE="\033[1;31m"; JAUNE="\033[1;33m"; RAZ="\033[0m"
-titre()    { echo -e "\n${BLEU}==> $1${RAZ}"; }
-ok()       { echo -e "${VERT}✔ $1${RAZ}"; }
-attention(){ echo -e "${JAUNE}⚠ $1${RAZ}"; }
-erreur()   { echo -e "${ROUGE}✘ $1${RAZ}" >&2; }
-# Chaîne YAML entre apostrophes : seule l'apostrophe est à échapper (doublée).
-yaml_quote() { local v=${1//\'/\'\'}; printf "'%s'" "$v"; }
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Fonctions communes (couleurs, yaml_quote, installation d'Ansible...)
+# shellcheck source=lib/commun.sh
+. "$SCRIPT_DIR/lib/commun.sh"
 cd "$SCRIPT_DIR/ansible" || { erreur "Dossier ansible/ introuvable."; exit 1; }
 
 [[ $EUID -eq 0 ]] && { erreur "Ne lancez pas ce script en root : lancez-le avec votre compte habituel."; exit 1; }
@@ -34,7 +30,8 @@ else
   echo "Ce script installe, sur CE PC, la détection d'accès physique :"
   echo "alerte au déverrouillage, alerte USB et mode vigilance."
   echo "Une option webcam, facultative, vous sera proposée à part."
-  echo "Prérequis : Fedora, Debian ou Ubuntu, bureau GNOME, application ntfy sur votre téléphone."
+  echo "Prérequis : Fedora, Debian, Ubuntu, Arch Linux ou openSUSE ; bureau GNOME ou KDE Plasma ;"
+  echo "application ntfy sur votre téléphone."
   echo
   attention "À savoir avant d'installer :"
   echo "  - Pour détecter une présence, le module lit les événements du clavier et de la souris"
@@ -52,17 +49,9 @@ read -r -p "Continuer ? [o/N] " reponse
 
 # --- 1. Ansible ------------------------------------------------------------
 titre "1/4 — Vérification d'Ansible"
-if command -v ansible-playbook >/dev/null 2>&1; then
-  ok "Ansible est installé."
-else
-  if   command -v dnf >/dev/null 2>&1; then INSTALL="sudo dnf install -y ansible"
-  elif command -v apt >/dev/null 2>&1; then INSTALL="sudo apt update && sudo apt install -y ansible"
-  else erreur "Installez Ansible manuellement, puis relancez."; exit 1; fi
-  read -r -p "Ansible n'est pas installé. L'installer ($INSTALL) ? [o/N] " rep
-  [[ "$rep" =~ ^[oO]$ ]] || { erreur "Ansible est requis. Arrêt."; exit 1; }
-  eval "$INSTALL"
-  ok "Ansible installé."
-fi
+assurer_ansible || exit 1
+# pacman et zypper sont des modules de community.general
+installer_collections
 
 # --- 2. Option webcam (facultative, refusée par défaut) --------------------
 WEBCAM=false

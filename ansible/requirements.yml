@@ -1,0 +1,10 @@
+---
+# Collections Ansible nécessaires (installées par install.sh et install-pc.sh) :
+#   ansible-galaxy collection install -r requirements.yml
+collections:
+  - name: community.docker    # docker_compose_v2 (apparu en 3.6.0)
+    version: ">=3.6.0"
+  - name: community.general   # ufw, sefcontext, pacman, zypper
+    version: ">=7.0.0"
+  - name: ansible.posix       # firewalld
+    version: ">=1.5.0"
