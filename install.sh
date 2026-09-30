@@ -82,6 +82,32 @@ serveurs:
 YAML
 ok "Inventaire écrit (serveur ${SERVEUR_IP}, utilisateur ${SERVEUR_USER})."
 
+# --- Clé d'hôte SSH du serveur ---------------------------------------------
+# Ansible vérifie les clés d'hôte (ansible.cfg). Si le serveur est inconnu, on
+# affiche son empreinte pour que l'utilisateur la compare (sur le serveur :
+# ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub) avant de l'enregistrer.
+KNOWN_HOSTS="$HOME/.ssh/known_hosts"
+if ssh-keygen -F "$SERVEUR_IP" -f "$KNOWN_HOSTS" >/dev/null 2>&1; then
+  ok "Clé d'hôte du serveur déjà connue (~/.ssh/known_hosts)."
+else
+  CLES_HOTE=$(ssh-keyscan -T 5 -t ed25519,ecdsa,rsa "$SERVEUR_IP" 2>/dev/null || true)
+  if [[ -z "$CLES_HOTE" ]]; then
+    attention "Impossible de lire la clé d'hôte de ${SERVEUR_IP} (serveur injoignable ?)."
+    attention "Elle sera enregistrée à la première connexion (StrictHostKeyChecking=accept-new)."
+  else
+    echo "Empreinte(s) de la clé d'hôte du serveur ${SERVEUR_IP} :"
+    ssh-keygen -lf - <<<"$CLES_HOTE" | sed 's/^/    /'
+    echo "Comparez-la avec celle affichée SUR le serveur :"
+    echo "    ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub"
+    read -r -p "L'empreinte correspond-elle ? [o/N] " rep_cle
+    [[ "$rep_cle" =~ ^[oO]$ ]] || { erreur "Clé d'hôte non confirmée. Arrêt."; exit 1; }
+    mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
+    printf '%s\n' "$CLES_HOTE" >> "$KNOWN_HOSTS"
+    chmod 600 "$KNOWN_HOSTS"
+    ok "Clé d'hôte ajoutée à ~/.ssh/known_hosts."
+  fi
+fi
+
 # --- 4. Secrets (coffre Vault) ---------------------------------------------
 # IMPORTANT : les secrets sont créés AVANT le test de connexion, car le test
 # (comme tout appel Ansible) a besoin du .vault_pass pour déchiffrer le coffre.
