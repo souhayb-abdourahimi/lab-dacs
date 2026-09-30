@@ -20,8 +20,10 @@ platforms:
     cgroupns_mode: host
     volumes:
       - /sys/fs/cgroup:/sys/fs/cgroup:rw
-      # Données du Docker interne sur un volume : overlayfs ne s'empile pas sur overlayfs
+      # Données du Docker interne sur des volumes : overlayfs ne s'empile pas sur
+      # overlayfs (Docker >= 27 stocke ses images via containerd)
       - /var/lib/docker
+      - /var/lib/containerd
     groups:
       - serveurs
 provisioner:
