@@ -8,3 +8,6 @@ exclude_paths:
   - supervision/
   - adguard/
   - configs/
+  # Fichiers propres à chaque utilisateur, générés par install.sh (non versionnés)
+  - ansible/group_vars/all.yml
+  - ansible/inventory/hosts.yml

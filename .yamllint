@@ -6,6 +6,8 @@ ignore: |
   .git/
   .venv/
   .cache/
+  ansible/group_vars/all.yml
+  ansible/inventory/hosts.yml
 
 rules:
   line-length:

@@ -112,7 +112,8 @@ vm_sudo "cscli bouncers list"
 pull_recent() {
   local lp age
   lp="$(vm_sudo "cscli bouncers list -o json" \
-        | jq -r '[.[] | select(.name | test("firewall"))][0].last_pull // empty')"
+        | jq -r '[.[] | select(.name | test("firewall"; "i")) | select(.last_pull != null)]
+                 | sort_by(.last_pull) | last | .last_pull // empty')"
   [[ -n "$lp" && "$lp" != null ]] || return 1
   age=$(( $(vm date -u +%s) - $(date -u -d "$lp" +%s) ))
   echo "  dernier « pull » du bouncer : $lp (il y a ${age}s)"
@@ -122,7 +123,9 @@ controle "bouncer inscrit, « Last API pull » récent" reessayer 6 10 pull_rece
 # Blocage réel : la décision doit arriver dans le pare-feu du noyau
 IP_TEST=203.0.113.7
 vm_sudo "cscli decisions add --ip $IP_TEST --duration 10m --reason e2e" >/dev/null
-ip_bloquee() { vm_sudo "nft list ruleset 2>/dev/null; ipset list 2>/dev/null" | grep -qF "$IP_TEST"; }
+# (deux appels : vm_sudo n'élève que la première commande d'une ligne)
+regles_parefeu() { vm_sudo "nft list ruleset" 2>/dev/null; vm_sudo "ipset list" 2>/dev/null; }
+ip_bloquee() { regles_parefeu | grep -qF "$IP_TEST"; }
 ip_liberee() { ! ip_bloquee; }
 controle "$IP_TEST bloquée dans le pare-feu (nft/ipset)" reessayer 12 5 ip_bloquee
 vm_sudo "cscli decisions delete --ip $IP_TEST" >/dev/null
