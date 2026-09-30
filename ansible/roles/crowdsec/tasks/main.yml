@@ -78,3 +78,26 @@
     name: crowdsec-firewall-bouncer
     enabled: true
     state: started
+
+# Un bouncer qui plante juste après son démarrage (clé d'API absente, pare-feu
+# inutilisable...) ne bloque plus rien, en silence : on vérifie qu'il tourne
+# toujours quelques secondes plus tard, et on affiche son journal sinon.
+- name: Vérifier que le bouncer reste actif
+  ansible.builtin.systemd:
+    name: crowdsec-firewall-bouncer
+  register: crowdsec_bouncer_etat
+  until: crowdsec_bouncer_etat.status.SubState == 'running'
+  retries: 5
+  delay: 3
+  failed_when: false
+
+- name: Lire le journal du bouncer
+  ansible.builtin.command: journalctl -u crowdsec-firewall-bouncer -n 40 --no-pager
+  register: crowdsec_bouncer_journal
+  changed_when: false
+  when: crowdsec_bouncer_etat.status.SubState != 'running'
+
+- name: Le bouncer doit tourner
+  ansible.builtin.fail:
+    msg: "{{ ['crowdsec-firewall-bouncer ne tourne pas (' ~ crowdsec_bouncer_etat.status.SubState ~ ') :'] + crowdsec_bouncer_journal.stdout_lines }}"
+  when: crowdsec_bouncer_etat.status.SubState != 'running'
