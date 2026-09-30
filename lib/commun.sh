@@ -165,7 +165,13 @@ assurer_ansible() {
 }
 
 # Installe les collections Ansible listées dans ansible/requirements.yml
-# (appeler depuis le dossier ansible/).
+# (appeler depuis le dossier ansible/). Galaxy renvoie parfois une réponse
+# invalide passagère (« Unexpected Exception ... 'results' ») : 3 essais.
 installer_collections() {
-  ansible-galaxy collection install -r requirements.yml >/dev/null
+  local essai
+  for essai in 1 2 3; do
+    ansible-galaxy collection install -r requirements.yml >/dev/null && return 0
+    [[ $essai -lt 3 ]] && attention "Galaxy indisponible, nouvel essai dans $((essai * 10)) s..." && sleep $((essai * 10))
+  done
+  return 1
 }
