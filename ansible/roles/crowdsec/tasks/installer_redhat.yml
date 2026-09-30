@@ -1,0 +1,25 @@
+---
+# Fedora et RHEL/Rocky/Alma ne fournissent pas CrowdSec : dépôt officiel.
+- name: Déclarer le dépôt CrowdSec
+  ansible.builtin.yum_repository:
+    name: crowdsec_crowdsec
+    description: CrowdSec
+    baseurl: "{{ crowdsec_depot_rpm }}"
+    gpgcheck: true
+    repo_gpgcheck: true
+    gpgkey: "{{ crowdsec_depot_cle }}"
+    sslverify: true
+    metadata_expire: "3600"
+    enabled: true
+
+- name: Installer CrowdSec
+  ansible.builtin.package:
+    name: crowdsec
+    state: present
+
+# Installé APRÈS crowdsec pour qu'il s'enregistre auprès de l'API locale.
+# Variante nftables : firewalld repose sur nftables.
+- name: Installer le bouncer pare-feu (nftables, pour firewalld)
+  ansible.builtin.package:
+    name: crowdsec-firewall-bouncer-nftables
+    state: present

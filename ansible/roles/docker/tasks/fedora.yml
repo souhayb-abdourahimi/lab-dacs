@@ -1,0 +1,9 @@
+---
+# Fedora fournit Docker (moby-engine) et Compose v2 (docker-compose) dans ses
+# dépôts. moby-engine active SELinux pour les conteneurs : voir le rôle selinux.
+- name: Installer Docker et Compose v2
+  ansible.builtin.package:
+    name:
+      - moby-engine
+      - docker-compose
+    state: present

@@ -1,0 +1,31 @@
+---
+# firewalld refuse déjà tout ce qui n'est pas autorisé dans la zone par défaut.
+# On y ouvre SSH et DNS, et on ferme l'interface web Cockpit que Fedora/RHEL
+# autorisent d'office (équivalent de la politique ufw « deny » des Debian).
+- name: Installer firewalld
+  ansible.builtin.package:
+    name: firewalld
+    state: present
+
+- name: Démarrer et activer firewalld
+  ansible.builtin.systemd:
+    name: firewalld
+    state: started
+    enabled: true
+
+- name: Autoriser SSH et DNS (AdGuard)
+  ansible.posix.firewalld:
+    service: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop:
+    - ssh
+    - dns
+
+- name: Fermer Cockpit (interface d'administration web, port 9090)
+  ansible.posix.firewalld:
+    service: cockpit
+    permanent: true
+    immediate: true
+    state: disabled

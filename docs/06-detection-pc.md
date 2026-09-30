@@ -12,7 +12,7 @@ cd lab-dacs
 
 Le script réutilise le coffre du serveur s'il est présent sur la machine (même sujet ntfy, copie des photos sur le serveur). Sinon, il demande seulement le sujet ntfy, et les photos sont uniquement envoyées sur le téléphone. **Déconnectez-vous puis reconnectez-vous** à la fin : l'accès au clavier et à la souris (groupe `input`) n'est actif qu'à l'ouverture de session.
 
-Prérequis : Fedora, Debian ou Ubuntu, avec le bureau GNOME. Les systèmes immuables (Fedora Silverblue) ne sont pas pris en charge.
+Prérequis : Fedora, Debian, Ubuntu, Arch Linux ou openSUSE, avec le bureau GNOME ou KDE Plasma. Les systèmes immuables (Fedora Silverblue, openSUSE MicroOS/Aeon) ne sont pas pris en charge.
 
 **L'option webcam est un bonus facultatif, refusé par défaut.** L'installateur la propose dans une étape à part, après avoir rappelé le cadre légal. Si elle est refusée, rien n'est installé pour la caméra (ni ffmpeg, ni les commandes `photo-on` et `photo-off`), et le script de capture refuse de s'exécuter même s'il est appelé. Pour changer d'avis, il suffit de relancer `./install-pc.sh`.
 
@@ -35,7 +35,7 @@ Détecter quand quelqu'un accède physiquement à mon PC en mon absence, et réa
 
 | Déclencheur | Mécanisme | Toujours actif ? |
 |-------------|-----------|------------------|
-| Déverrouillage de session | signal D-Bus GNOME (`org.gnome.ScreenSaver`) | oui |
+| Déverrouillage de session | signal D-Bus `ActiveChanged` : `org.gnome.ScreenSaver` (GNOME) ou `org.freedesktop.ScreenSaver` (KDE Plasma) | oui |
 | Branchement USB | règle `udev` | oui |
 | Activité clavier/souris | lecture des périphériques (`evdev`) | seulement en vigilance |
 | Verrouillage automatique | `loginctl lock-session` sur intrusion | seulement en vigilance |
@@ -109,7 +109,7 @@ Le test du rôle sur une machine vierge en a révélé trois autres :
 
 ## Limites connues et pistes d'amélioration
 
-- **Bureau GNOME uniquement** pour les alertes de verrouillage et de déverrouillage, qui reposent sur un signal D-Bus propre à GNOME. Sur un autre bureau, l'installateur prévient ; USB et détection d'activité restent actives.
+- **Bureaux GNOME et KDE Plasma uniquement** pour les alertes de verrouillage et de déverrouillage, qui reposent sur le signal D-Bus `ActiveChanged` de ces bureaux. Sur un autre bureau (Xfce, Cinnamon...), l'installateur prévient ; USB et détection d'activité restent actives.
 - **Copie des preuves avec une clé SSH protégée par une phrase de passe** : le service ne peut pas la saisir, la copie est alors ignorée (la photo part quand même sur le téléphone).
 - **Un intrus qui connaît le mot de passe** désarme la vigilance en déverrouillant. Mais il a déjà déclenché l'alerte d'intrusion **avant** le verrouillage : le signalement a eu lieu.
 - **Détection au niveau de l'écran de connexion (GDM), pas seulement en session.** Piste : brancher PAM sur les échecs d'authentification pour capturer une tentative *avant* même l'ouverture de session (plusieurs mots de passe ratés → photo silencieuse).

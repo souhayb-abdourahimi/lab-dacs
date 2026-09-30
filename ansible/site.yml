@@ -2,12 +2,65 @@
 - name: Déploiement du lab DACS
   hosts: serveurs
   become: true
+  # Les faits sont collectés APRÈS l'installation de Python (voir plus bas) :
+  # la collecte automatique échouerait sur un système minimal qui n'en a pas.
+  gather_facts: false
   pre_tasks:
+    # Le module 'raw' n'a pas besoin de Python sur la cible : c'est le seul
+    # moyen d'installer Python sur un système minimal qui n'en a pas encore.
+    # Sur Fedora/RHEL, Ansible a aussi besoin des liaisons Python de SELinux et,
+    # avec dnf5 (Fedora 41+), de python3-libdnf5.
     - name: S'assurer que Python 3 est installé (requis par Ansible)
-      ansible.builtin.raw: test -e /usr/bin/python3 || (apt-get update && apt-get install -y python3)
+      ansible.builtin.raw: |
+        if command -v apt-get >/dev/null 2>&1; then
+          test -e /usr/bin/python3 || { apt-get update && apt-get install -y python3; }
+        elif command -v dnf >/dev/null 2>&1; then
+          paquets="python3 python3-libselinux"
+          if dnf --version 2>/dev/null | grep -q dnf5; then paquets="$paquets python3-libdnf5"; fi
+          rpm -q $paquets >/dev/null 2>&1 || dnf install -y $paquets
+        fi
       changed_when: false
-      # Le module 'raw' n'a pas besoin de Python sur la cible : c'est le seul
-      # moyen d'installer Python sur une Debian minimale qui n'en a pas encore.
+
+    - name: Collecter les informations sur le serveur
+      ansible.builtin.setup:
+
+    - name: Vérifier que le système est pris en charge
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['os_family'] in ['Debian', 'RedHat']
+          - ansible_facts['service_mgr'] == 'systemd'
+        fail_msg: >-
+          Système non pris en charge : {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}.
+          Serveurs pris en charge : Debian 12/13, Ubuntu 22.04/24.04, Fedora, Rocky Linux / AlmaLinux 9
+          (voir la matrice de compatibilité du README).
+        quiet: true
+
+    - name: Avertir si la version n'a pas été testée
+      ansible.builtin.debug:
+        msg: >-
+          Attention : {{ ansible_facts['distribution'] }} {{ ansible_facts['distribution_version'] }}
+          n'est pas dans la matrice de compatibilité ; le déploiement est tenté quand même.
+      when: >-
+        not (
+          (ansible_facts['distribution'] == 'Debian' and ansible_facts['distribution_major_version'] | int >= 12)
+          or (ansible_facts['distribution'] == 'Ubuntu' and ansible_facts['distribution_version'] is version('22.04', '>='))
+          or ansible_facts['distribution'] == 'Fedora'
+          or (ansible_facts['distribution'] in ['Rocky', 'AlmaLinux', 'RedHat'] and ansible_facts['distribution_major_version'] | int >= 9)
+        )
+
+    # Les rôles installent leurs paquets avec ansible.builtin.package, qui ne
+    # rafraîchit pas l'index apt : on le fait une fois ici (index périmé = 404).
+    - name: Mettre à jour l'index des paquets (Debian, Ubuntu)
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+      when: ansible_facts['os_family'] == 'Debian'
+
+    # Nom du service SSH : « ssh » sur Debian/Ubuntu, « sshd » sur Fedora/RHEL.
+    # Utilisé par le rôle ssh (redémarrage) et le rôle crowdsec (journald).
+    - name: Déterminer le nom du service SSH
+      ansible.builtin.set_fact:
+        ssh_service: "{{ 'ssh' if ansible_facts['os_family'] == 'Debian' else 'sshd' }}"
 
     # Dossier de déploiement des stacks Docker : par défaut ~/lab-dacs, avec le
     # VRAI dossier personnel de l'utilisateur (lu dans la base des comptes, il
@@ -23,6 +76,7 @@
         lab_dacs_dir: "{{ lab_dacs_dir | default(ansible_facts['getent_passwd'][ansible_user][4] ~ '/lab-dacs') }}"
   roles:
     - secrets
+    - selinux
     - docker
     - supervision
     - adguard

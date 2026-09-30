@@ -1,0 +1,34 @@
+---
+- name: Installer ufw
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+
+- name: Politique par defaut en entree (refuser)
+  community.general.ufw:
+    direction: incoming
+    default: deny
+
+- name: Politique par defaut en sortie (autoriser)
+  community.general.ufw:
+    direction: outgoing
+    default: allow
+
+- name: Autoriser SSH (avant l'activation, pour ne pas se couper l'acces)
+  community.general.ufw:
+    rule: allow
+    port: "22"
+    proto: tcp
+
+- name: Autoriser le DNS (AdGuard)
+  community.general.ufw:
+    rule: allow
+    port: "53"
+    proto: "{{ item }}"
+  loop:
+    - tcp
+    - udp
+
+- name: Activer ufw
+  community.general.ufw:
+    state: enabled

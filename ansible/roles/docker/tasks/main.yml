@@ -1,29 +1,22 @@
 ---
-# Installe Docker (version de la distribution) et le plugin « docker compose » v2,
-# requis par community.docker.docker_compose_v2. Selon la distribution, le plugin
-# v2 ne porte pas le même nom de paquet :
-#   - Ubuntu 22.04 / 24.04 : docker-compose-v2 (le paquet docker-compose y est l'ancien v1)
-#   - Debian 13            : docker-compose (déjà en v2)
-#   - Debian 12            : aucun paquet v2 -> binaire officiel, empreinte vérifiée
-- name: Installer Docker
-  ansible.builtin.apt:
-    name: docker.io
-    state: present
-    update_cache: true
+# Installe Docker et le plugin « docker compose » v2, requis par
+# community.docker.docker_compose_v2. Source selon la distribution :
+#   - Debian 12/13, Ubuntu : docker.io de la distribution      (tasks/debian.yml)
+#   - Fedora               : moby-engine de la distribution    (tasks/fedora.yml)
+#   - Rocky, Alma, RHEL 9  : Docker CE, dépôt officiel Docker  (tasks/el.yml)
+# Le plugin Compose v2 est ensuite vérifié ; à défaut (Debian 12 notamment),
+# le binaire officiel est installé avec une empreinte vérifiée.
+- name: Installer Docker (Debian, Ubuntu)
+  ansible.builtin.include_tasks: debian.yml
+  when: ansible_facts['os_family'] == 'Debian'
 
-- name: Choisir le paquet du plugin Compose v2 pour cette distribution
-  ansible.builtin.set_fact:
-    docker_compose_paquet: >-
-      {{ 'docker-compose-v2' if ansible_facts['distribution'] == 'Ubuntu'
-         else ('docker-compose' if ansible_facts['distribution'] == 'Debian'
-               and ansible_facts['distribution_major_version'] | int >= 13
-               else '') }}
+- name: Installer Docker (Fedora)
+  ansible.builtin.include_tasks: fedora.yml
+  when: ansible_facts['distribution'] == 'Fedora'
 
-- name: Installer le plugin Compose v2 depuis la distribution
-  ansible.builtin.apt:
-    name: "{{ docker_compose_paquet }}"
-    state: present
-  when: docker_compose_paquet | length > 0
+- name: Installer Docker CE (Rocky, Alma, RHEL)
+  ansible.builtin.include_tasks: el.yml
+  when: ansible_facts['os_family'] == 'RedHat' and ansible_facts['distribution'] != 'Fedora'
 
 - name: Vérifier la présence de « docker compose » v2
   ansible.builtin.command: docker compose version --short

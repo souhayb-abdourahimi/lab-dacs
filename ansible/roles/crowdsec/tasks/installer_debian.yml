@@ -1,0 +1,65 @@
+---
+# Debian (12, 13) et Ubuntu 24.04 fournissent crowdsec et crowdsec-firewall-bouncer.
+# Si l'un des deux manque (Ubuntu 22.04...), on passe par le dépôt officiel.
+- name: Vérifier si la distribution fournit CrowdSec et son bouncer
+  ansible.builtin.command: apt-cache policy crowdsec crowdsec-firewall-bouncer
+  register: crowdsec_policy
+  changed_when: false
+
+- name: Choisir la source des paquets CrowdSec
+  ansible.builtin.set_fact:
+    crowdsec_depot_officiel: >-
+      {{ (crowdsec_forcer_depot_officiel | bool)
+         or (crowdsec_policy.stdout | regex_findall('Candidate: (?!\(none\))') | length) < 2 }}
+    crowdsec_bouncer_distribution: crowdsec-firewall-bouncer
+
+# Déjà installé depuis la distribution : on ne bascule pas un serveur existant
+- name: Repérer un bouncer déjà installé depuis la distribution
+  ansible.builtin.command: dpkg-query -W -f='${Status}' crowdsec-firewall-bouncer
+  register: crowdsec_bouncer_dpkg
+  changed_when: false
+  failed_when: false
+
+- name: Installer CrowdSec depuis la distribution
+  ansible.builtin.apt:
+    name:
+      - crowdsec
+      - crowdsec-firewall-bouncer
+    state: present
+  when: not crowdsec_depot_officiel or 'install ok installed' in crowdsec_bouncer_dpkg.stdout
+
+- name: Installer CrowdSec depuis le dépôt officiel
+  when: crowdsec_depot_officiel and 'install ok installed' not in crowdsec_bouncer_dpkg.stdout
+  block:
+    - name: Dossier des clés APT
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    # Clé au format texte (.asc) : lue directement par apt (signed-by), sans gpg
+    - name: Clé de signature du dépôt CrowdSec
+      ansible.builtin.get_url:
+        url: "{{ crowdsec_depot_cle }}"
+        dest: /etc/apt/keyrings/crowdsec.asc
+        mode: "0644"
+
+    - name: Déclarer le dépôt CrowdSec
+      ansible.builtin.copy:
+        dest: /etc/apt/sources.list.d/crowdsec.list
+        content: "deb [signed-by=/etc/apt/keyrings/crowdsec.asc] {{ crowdsec_depot_apt }} any main\n"
+        mode: "0644"
+      register: crowdsec_depot
+
+    - name: Installer CrowdSec
+      ansible.builtin.apt:
+        name: crowdsec
+        state: present
+        update_cache: "{{ crowdsec_depot is changed }}"
+
+    # Installé APRÈS crowdsec : le paquet s'enregistre alors tout seul auprès
+    # de l'API locale. Variante iptables : ufw repose sur iptables.
+    - name: Installer le bouncer pare-feu (iptables, pour ufw)
+      ansible.builtin.apt:
+        name: crowdsec-firewall-bouncer-iptables
+        state: present

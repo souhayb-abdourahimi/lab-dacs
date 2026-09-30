@@ -1,12 +1,13 @@
 ---
 # Installe les scripts d'alerte et leurs timers systemd
 - name: Installer les outils utilises par les alertes (curl, jq)
-  ansible.builtin.apt:
+  # RHEL 9 et dérivés fournissent curl-minimal, en conflit avec le paquet curl
+  # complet : avec dnf, on demande le fichier /usr/bin/curl, que l'un ou l'autre fournit.
+  ansible.builtin.package:
     name:
-      - curl
+      - "{{ '/usr/bin/curl' if ansible_facts['pkg_mgr'] in ['dnf', 'dnf5'] else 'curl' }}"
       - jq
     state: present
-    update_cache: true
 
 - name: Installer les scripts d'alerte
   ansible.builtin.copy:
@@ -47,6 +48,7 @@
     - alerte-crowdsec.timer
     - alerte-adguard.timer
 
+# /etc/pam.d/sshd et /etc/pam.d/sudo existent sous ce nom sur Debian comme sur Fedora/RHEL
 - name: Brancher l'alerte de connexion SSH sur PAM
   ansible.builtin.lineinfile:
     path: /etc/pam.d/sshd

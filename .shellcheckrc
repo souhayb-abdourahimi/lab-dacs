@@ -1,0 +1,3 @@
+# Suivre les fichiers sourcés (lib/commun.sh), chemins relatifs au script
+external-sources=true
+source-path=SCRIPTDIR

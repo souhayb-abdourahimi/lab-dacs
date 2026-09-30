@@ -1,19 +1,32 @@
 ---
 # ---------- 1. Vérifications : échouer tôt, avec un message clair ----------
-- name: Vérifier que le système est pris en charge (Fedora ou Debian/Ubuntu)
+- name: Vérifier que le système est pris en charge
   ansible.builtin.assert:
-    that: ansible_facts['os_family'] in ['RedHat', 'Debian']
-    fail_msg: "Système non pris en charge : {{ ansible_facts['distribution'] }}. Fedora, Debian ou Ubuntu requis."
+    that: ansible_facts['os_family'] in ['RedHat', 'Debian', 'Archlinux', 'Suse']
+    fail_msg: >-
+      Système non pris en charge : {{ ansible_facts['distribution'] }}.
+      Fedora, Debian, Ubuntu, Arch Linux ou openSUSE requis.
 
 - name: Détecter un système immuable (Fedora Silverblue, Kinoite...)
   ansible.builtin.stat:
     path: /run/ostree-booted
   register: ostree
 
+# openSUSE MicroOS / Aeon / Kalpa : racine en lecture seule, paquets via transactional-update
+- name: Détecter une racine en lecture seule (openSUSE MicroOS, Aeon...)
+  ansible.builtin.set_fact:
+    racine_lecture_seule: >-
+      {{ 'ro' in ((ansible_facts['mounts'] | selectattr('mount', 'equalto', '/') | map(attribute='options')
+                   | first | default('')).split(',')) }}
+
 - name: Refuser les systèmes immuables
   ansible.builtin.assert:
-    that: not ostree.stat.exists
-    fail_msg: "Système immuable détecté (Silverblue...) : les paquets ne peuvent pas être installés par dnf. Non pris en charge."
+    that:
+      - not ostree.stat.exists
+      - not (racine_lecture_seule | bool)
+    fail_msg: >-
+      Système immuable détecté (Fedora Silverblue, openSUSE MicroOS/Aeon...) : les paquets ne
+      peuvent pas y être installés directement. Non pris en charge.
 
 - name: Refuser un lancement en root
   ansible.builtin.assert:
@@ -25,13 +38,17 @@
     that: ntfy_topic is defined and ntfy_topic | length > 0
     fail_msg: "Sujet ntfy absent : lancez le déploiement via install-pc.sh."
 
-- name: Avertir si le bureau n'est pas GNOME
+# Verrouillage/déverrouillage détectés par le signal D-Bus ActiveChanged :
+# org.gnome.ScreenSaver (GNOME) ou org.freedesktop.ScreenSaver (KDE Plasma).
+- name: Avertir si le bureau n'est ni GNOME ni KDE Plasma
   ansible.builtin.debug:
     msg: >-
       Attention : bureau détecté « {{ lookup('env', 'XDG_CURRENT_DESKTOP') }} ».
-      Les alertes de verrouillage et de déverrouillage reposent sur un signal propre à GNOME :
-      elles ne fonctionneront pas. USB et détection d'activité restent actives.
-  when: "'GNOME' not in lookup('env', 'XDG_CURRENT_DESKTOP')"
+      Les alertes de verrouillage et de déverrouillage reposent sur un signal de GNOME ou de
+      KDE Plasma : elles risquent de ne pas fonctionner. USB et détection d'activité restent actives.
+  when: >-
+    'GNOME' not in lookup('env', 'XDG_CURRENT_DESKTOP')
+    and 'KDE' not in lookup('env', 'XDG_CURRENT_DESKTOP')
 
 # ---------- 2. Dépendances : n'installer que ce qui manque ----------
 # On teste la commande plutôt que le paquet : évite les conflits (ex. ffmpeg de RPM Fusion).
@@ -54,11 +71,18 @@
     noms:
       Debian: {curl: curl, ffmpeg: ffmpeg, notify-send: libnotify-bin, dbus-monitor: dbus-bin, udevadm: udev}
       RedHat: {curl: curl, ffmpeg: ffmpeg-free, notify-send: libnotify, dbus-monitor: dbus-tools, udevadm: systemd-udev}
+      Archlinux: {curl: curl, ffmpeg: ffmpeg, notify-send: libnotify, dbus-monitor: dbus, udevadm: systemd}
+      Suse: {curl: curl, ffmpeg: ffmpeg, notify-send: libnotify-tools, dbus-monitor: dbus-1-tools, udevadm: udev}
+    evdev:
+      Debian: python3-evdev
+      RedHat: python3-evdev
+      Archlinux: python-evdev
+      Suse: python3-evdev
   ansible.builtin.set_fact:
     paquets_manquants: >-
       {{ (commandes.results | selectattr('rc', 'ne', 0) | map(attribute='item')
           | map('extract', noms[ansible_facts['os_family']]) | list)
-         + (['python3-evdev'] if py_evdev.rc != 0 else []) }}
+         + ([evdev[ansible_facts['os_family']]] if py_evdev.rc != 0 else []) }}
 
 # Sur Debian/Ubuntu, l'index des paquets doit être à jour, sinon apt réclame
 # des versions supprimées des miroirs (erreur 404) sur un PC rarement mis à jour.
@@ -76,6 +100,22 @@
     state: present
   become: true
   when: paquets_manquants | length > 0 and ansible_facts['os_family'] == 'RedHat'
+
+# Arch : base de paquets rafraîchie avant l'installation (sinon miroirs en 404)
+- name: Installer les paquets manquants (Arch Linux)
+  community.general.pacman:
+    name: "{{ paquets_manquants }}"
+    state: present
+    update_cache: true
+  become: true
+  when: paquets_manquants | length > 0 and ansible_facts['os_family'] == 'Archlinux'
+
+- name: Installer les paquets manquants (openSUSE)
+  community.general.zypper:
+    name: "{{ paquets_manquants }}"
+    state: present
+  become: true
+  when: paquets_manquants | length > 0 and ansible_facts['os_family'] == 'Suse'
 
 # ---------- 3. Droits : groupe input pour lire clavier et souris ----------
 - name: Ajouter l'utilisateur au groupe input
