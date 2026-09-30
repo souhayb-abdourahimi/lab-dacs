@@ -1,9 +1,11 @@
 ---
 # Installe les scripts d'alerte et leurs timers systemd
 - name: Installer les outils utilises par les alertes (curl, jq)
+  # RHEL 9 et dérivés fournissent curl-minimal, en conflit avec le paquet curl
+  # complet : avec dnf, on demande le fichier /usr/bin/curl, que l'un ou l'autre fournit.
   ansible.builtin.package:
     name:
-      - curl
+      - "{{ '/usr/bin/curl' if ansible_facts['pkg_mgr'] in ['dnf', 'dnf5'] else 'curl' }}"
       - jq
     state: present
 
