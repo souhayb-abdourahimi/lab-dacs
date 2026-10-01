@@ -1,0 +1,79 @@
+---
+- name: Vérifier la famille du système
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['os_family'] in ['Debian', 'RedHat']
+      - ansible_facts['service_mgr'] == 'systemd'
+    fail_msg: >-
+      Système non pris en charge :
+      {{ ansible_facts['distribution'] }}
+      {{ ansible_facts['distribution_version'] }}.
+    quiet: true
+
+- name: Vérifier l'utilisateur de déploiement
+  ansible.builtin.assert:
+    that:
+      - ansible_user is defined
+      - ansible_user | string | length > 0
+      - ansible_facts['getent_passwd'][ansible_user] is defined
+    fail_msg: "L'utilisateur Ansible est absent ou inconnu sur la cible."
+    quiet: true
+
+- name: Vérifier le chemin de déploiement
+  ansible.builtin.assert:
+    that:
+      - lab_dacs_dir is string
+      - lab_dacs_dir is match('^/')
+      - lab_dacs_dir | length > 4
+      - lab_dacs_dir not in ['/', '/etc', '/usr', '/var', '/home', '/root']
+      - "'..' not in lab_dacs_dir.split('/')"
+    fail_msg: "lab_dacs_dir est absent ou dangereux : {{ lab_dacs_dir }}"
+    quiet: true
+
+- name: Vérifier les secrets obligatoires
+  ansible.builtin.assert:
+    that:
+      - grafana_admin_password is defined
+      - grafana_admin_password | string | length > 0
+      - ntfy_topic is defined
+      - ntfy_topic | string | length > 0
+      - >-
+        (
+          adguard_user is defined
+          and adguard_password is defined
+          and adguard_user | string | length > 0
+          and adguard_password | string | length > 0
+        )
+        or
+        (
+          adguard_auth is defined
+          and ':' in adguard_auth
+        )
+    fail_msg: "Le coffre Vault ne contient pas tous les secrets obligatoires."
+    quiet: true
+  no_log: true
+
+- name: Vérifier que le sujet ntfy ne contient pas de séparateur de chemin
+  ansible.builtin.assert:
+    that:
+      - "'/' not in ntfy_topic"
+      - "'?' not in ntfy_topic"
+      - "'#' not in ntfy_topic"
+      - "' ' not in ntfy_topic"
+    fail_msg: "ntfy_topic contient un caractère interdit."
+    quiet: true
+  no_log: true
+
+- name: Vérifier l'espace disque disponible
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          ansible_facts['mounts']
+          | selectattr('mount', 'equalto', '/')
+          | map(attribute='size_available')
+          | first
+          | int
+        ) > 1073741824
+    fail_msg: "Moins de 1 Gio disponible sur le système de fichiers racine."
+    quiet: true

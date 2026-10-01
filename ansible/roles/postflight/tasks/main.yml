@@ -1,0 +1,105 @@
+---
+- name: Collecter l'état des services
+  ansible.builtin.service_facts:
+
+- name: Vérifier les services critiques
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.services['docker.service'].state == 'running'
+      - ansible_facts.services['crowdsec.service'].state == 'running'
+      - >-
+        ansible_facts.services['crowdsec-firewall-bouncer.service'].state
+        == 'running'
+    fail_msg: "Un service critique n'est pas actif."
+    quiet: true
+
+- name: Valider la configuration SSH finale
+  ansible.builtin.command:
+    argv:
+      - /usr/sbin/sshd
+      - -t
+  changed_when: false
+
+- name: Lire la configuration SSH effective
+  ansible.builtin.command:
+    argv:
+      - /usr/sbin/sshd
+      - -T
+  register: postflight_sshd
+  changed_when: false
+
+- name: Vérifier le durcissement SSH effectif
+  ansible.builtin.assert:
+    that:
+      - "'permitrootlogin no' in postflight_sshd.stdout_lines"
+      - "'passwordauthentication no' in postflight_sshd.stdout_lines"
+      - "'kbdinteractiveauthentication no' in postflight_sshd.stdout_lines"
+      - "'permitemptypasswords no' in postflight_sshd.stdout_lines"
+      - "'x11forwarding no' in postflight_sshd.stdout_lines"
+      - "'maxauthtries 3' in postflight_sshd.stdout_lines"
+    fail_msg: "La configuration effective de sshd n'est pas suffisamment durcie."
+    quiet: true
+
+- name: Vérifier les permissions du fichier d'alertes
+  ansible.builtin.stat:
+    path: /etc/lab-alertes.conf
+  register: postflight_alertes
+
+- name: Vérifier la protection des secrets d'alertes
+  ansible.builtin.assert:
+    that:
+      - postflight_alertes.stat.exists
+      - postflight_alertes.stat.uid == 0
+      - postflight_alertes.stat.gid == 0
+      - postflight_alertes.stat.mode == '0600'
+    fail_msg: "/etc/lab-alertes.conf n'est pas correctement protégé."
+    quiet: true
+
+- name: Vérifier le secret Grafana
+  ansible.builtin.stat:
+    path: "{{ lab_dacs_dir }}/supervision/grafana_admin_password"
+  register: postflight_grafana_secret
+
+- name: Vérifier les permissions du secret Grafana
+  ansible.builtin.assert:
+    that:
+      - postflight_grafana_secret.stat.exists
+      - postflight_grafana_secret.stat.mode == '0400'
+    fail_msg: "Le secret administrateur Grafana est insuffisamment protégé."
+    quiet: true
+
+- name: Attendre Grafana
+  ansible.builtin.uri:
+    url: http://127.0.0.1:3000/api/health
+    return_content: true
+  register: postflight_grafana
+  until:
+    - postflight_grafana.status == 200
+    - postflight_grafana.json.database == 'ok'
+  retries: 30
+  delay: 5
+
+- name: Vérifier les conteneurs critiques
+  ansible.builtin.command:
+    argv:
+      - docker
+      - compose
+      - ps
+      - --status
+      - running
+      - --services
+  args:
+    chdir: "{{ lab_dacs_dir }}/supervision"
+  register: postflight_conteneurs
+  changed_when: false
+
+- name: Vérifier la stack de supervision
+  ansible.builtin.assert:
+    that:
+      - "'prometheus' in postflight_conteneurs.stdout_lines"
+      - "'node-exporter' in postflight_conteneurs.stdout_lines"
+      - "'loki' in postflight_conteneurs.stdout_lines"
+      - "'alloy' in postflight_conteneurs.stdout_lines"
+      - "'grafana' in postflight_conteneurs.stdout_lines"
+    fail_msg: "La stack de supervision n'est pas entièrement active."
+    quiet: true
