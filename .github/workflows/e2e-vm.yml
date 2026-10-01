@@ -33,9 +33,10 @@ jobs:
       E2E_DIR: /tmp/lab-e2e
       E2E_ADRESSE: 127.0.0.2
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
-      # Les runners Linux de GitHub exposent /dev/kvm, mais réservé à root
+      # Les runners Linux de GitHub exposent /dev/kvm, mais réservé à root.
+      # Le runner est éphémère : ce droit n'est accordé qu'au périphérique KVM.
       - name: Activer KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
@@ -50,7 +51,7 @@ jobs:
           sudo apt-get install -y -q --no-install-recommends \
             qemu-system-x86 qemu-utils cloud-image-utils expect dnsutils jq
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
           cache: pip
