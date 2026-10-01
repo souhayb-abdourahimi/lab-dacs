@@ -1,7 +1,4 @@
 ---
-# Durcissement SSH : clé uniquement, root interdit.
-# Fichier préfixé 00- : sshd retient la PREMIÈRE valeur lue, il l'emporte donc sur
-# les réglages des distributions (ex. 50-redhat.conf sur Fedora/RHEL, 50-cloud-init.conf).
 - name: Déployer la configuration SSH durcie
   ansible.builtin.copy:
     dest: /etc/ssh/sshd_config.d/00-durcissement.conf
@@ -13,5 +10,11 @@
       PasswordAuthentication no
       KbdInteractiveAuthentication no
       PermitRootLogin no
+      PermitEmptyPasswords no
+      X11Forwarding no
+      MaxAuthTries 3
+      LoginGraceTime 30
+      AllowAgentForwarding no
+      AllowTcpForwarding yes
     validate: /usr/sbin/sshd -t -f %s
   notify: Redémarrer SSH
