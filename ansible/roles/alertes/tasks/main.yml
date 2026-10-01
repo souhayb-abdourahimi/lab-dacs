@@ -21,6 +21,16 @@
     - alerte-sudo.sh
     - alerte-crowdsec.sh
     - alerte-adguard.sh
+    - telemetrie-crowdsec.sh
+    - telemetrie-adguard.sh
+
+- name: Créer le dossier d'état des collecteurs
+  ansible.builtin.file:
+    path: /var/lib/lab-alertes
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
 
 - name: Installer les services et timers systemd
   ansible.builtin.copy:

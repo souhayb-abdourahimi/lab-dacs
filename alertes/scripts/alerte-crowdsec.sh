@@ -1,21 +1,12 @@
 #!/bin/sh
-# Envoie une notification pour chaque nouvelle alerte CrowdSec, et la journalise
-# (tag « lab-securite », lu par Loki pour le tableau de bord Sécurité)
-# Fichier généré par Ansible (modèle : alertes/lab-alertes.conf.example).
+set -eu
+IP=${1:?IP CrowdSec requise}
+SCENARIO=${2:?Scénario CrowdSec requis}
 # shellcheck source=/dev/null
 . /etc/lab-alertes.conf
-ETAT=/var/lib/lab-alertes/dernier-id-crowdsec
-mkdir -p /var/lib/lab-alertes
-DERNIER=$(cat "$ETAT" 2>/dev/null || echo 0)
-cscli alerts list -o json 2>/dev/null \
-  | jq -r --argjson d "$DERNIER" '.[]? | select(.id > $d) | "\(.id)|\(.source.value // "?")|\(.scenario // "?")"' \
-  | sort -t'|' -k1,1n \
-  | while IFS='|' read -r id ip scenario; do
-      raison=$(printf '%s' "$scenario" | tr '"' "'")
-      logger -t lab-securite "evenement=ip_bannie ip=$ip raison=\"$raison\""
-      curl -s -m 5 -H "Title: IP bannie sur $(uname -n)" -H "Tags: shield" -H "Priority: high" \
-        -d "IP : $ip
-Raison : $scenario
-Quand : $(date '+%d/%m/%Y %H:%M')" "${NTFY_SERVEUR:-https://ntfy.sh}/$NTFY_TOPIC" >/dev/null 2>&1
-      echo "$id" > "$ETAT"
-    done
+curl --fail --silent --show-error --max-time 5 \
+  -H "Title: IP bannie sur $(uname -n)" -H "Tags: shield" -H "Priority: high" \
+  -d "IP : $IP
+Raison : $SCENARIO
+Quand : $(date '+%d/%m/%Y %H:%M')" \
+  "${NTFY_SERVEUR:-https://ntfy.sh}/$NTFY_TOPIC" >/dev/null
